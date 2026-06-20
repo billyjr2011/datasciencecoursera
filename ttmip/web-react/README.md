@@ -39,6 +39,22 @@ demo generators (**DEMO** badge), so it always renders.
 Point at a non-local API with `<TTMIP apiBase="https://api.ttmip.cm" />` (in
 `src/main.jsx`).
 
+## Live demo (self-contained)
+
+```bash
+npm run build:demo     # → ../demo/index.html  (one self-contained file)
+```
+
+`npm run build:demo` inlines the entire app into a single
+[`ttmip/demo/index.html`](../demo/index.html) (~198 KB). It has no external
+dependencies (bar Google Fonts) and **needs no backend** — it runs on the
+built-in demo data, so you can open it by double-clicking or host it anywhere
+(GitHub Pages, Netlify drop, S3).
+
+A GitHub Pages workflow (`.github/workflows/pages.yml` at the repo root)
+publishes it automatically — enable Pages (Settings → Pages → Source: GitHub
+Actions) and it goes live at `https://billyjr2011.github.io/datasciencecoursera/`.
+
 ## Structure
 
 ```
