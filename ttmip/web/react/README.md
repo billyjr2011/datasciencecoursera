@@ -1,4 +1,8 @@
-# TTMIP — React / JSX
+# TTMIP — React / JSX (standalone single file)
+
+> Looking for the **full runnable app** with all 15 modules and the Cameroon
+> alert map? See [`../../web-react/`](../../web-react/). This folder is the
+> dependency-free, single-file component for dropping into an existing project.
 
 `TTMIP.jsx` is a single-file React port of the TTMIP dashboard. It has **no
 dependencies beyond React** (charts are inline SVG/CSS) and renders the
