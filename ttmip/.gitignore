@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 dist-jsx/
+dist-proto/
 
 # Env files (never commit secrets)
 .env
