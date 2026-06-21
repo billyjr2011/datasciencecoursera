@@ -1,4 +1,6 @@
 guardian_history.db
+guardian_history.db-shm
+guardian_history.db-wal
 __pycache__/
 *.pyc
 *.pyo
