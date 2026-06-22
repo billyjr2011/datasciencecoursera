@@ -4,13 +4,14 @@ name: Deploy TTMIP live demo to GitHub Pages
 # publishes it to GitHub Pages. The demo runs entirely on its built-in data
 # (no backend required), so it works as a static site.
 #
-# One-time setup: Settings → Pages → Source: "GitHub Actions".
-# Note: the `github-pages` environment may restrict deploys to the default
-# branch — merge this branch (or allow the branch in the environment) to go live.
+# One-time setup (repo owner): Settings → Pages → Source: "GitHub Actions".
+# Runs only on the default branch (+ manual dispatch): the `github-pages`
+# environment restricts deploys to the default branch, so running on feature
+# branches can never deploy and only produces noisy failing checks.
 
 on:
   push:
-    branches: [master, main, claude/ttmip-application-build-la3cu8]
+    branches: [master, main]
   workflow_dispatch:
 
 permissions:
