@@ -1,0 +1,84 @@
+// NdMED — Prisma schema. See docs/DATABASE.md for the narrative.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+  CLINICAL
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  name          String?
+  plan          Plan           @default(FREE)
+  consultations Consultation[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("users")
+}
+
+model Consultation {
+  id                String                    @id @default(uuid())
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  plan              Plan
+  answers           Json
+  result            Json
+  triageColor       String
+  referralSpecialty String?
+  model             String
+  patientZone       String?
+  specialists       ConsultationSpecialist[]
+  createdAt         DateTime                  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([triageColor])
+  @@map("consultations")
+}
+
+model Specialist {
+  id            String                   @id
+  name          String
+  specialty     String
+  subspecialty  String?
+  zone          String
+  city          String
+  lat           Float
+  lng           Float
+  facility      String
+  address       String
+  phone         String
+  email         String
+  available     String
+  languages     String[]
+  tags          String[]
+  consultations ConsultationSpecialist[]
+
+  @@index([city])
+  @@index([specialty])
+  @@map("specialists")
+}
+
+model ConsultationSpecialist {
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  consultationId String
+  specialist     Specialist   @relation(fields: [specialistId], references: [id])
+  specialistId   String
+  rank           Int
+  score          Float
+  distanceKm     Int?
+
+  @@id([consultationId, specialistId])
+  @@map("consultation_specialists")
+}
