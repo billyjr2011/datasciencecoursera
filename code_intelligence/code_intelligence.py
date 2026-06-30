@@ -675,7 +675,7 @@ def _cid(path: str, start: int, end: int) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CHALLENGE 1: FORMAL BUG DEFINITION FRAMEWORK — 52 RULES
+# CHALLENGE 1: FORMAL BUG DEFINITION FRAMEWORK — 46 RULES
 # ─────────────────────────────────────────────────────────────────────────────
 
 SEVERITY_WEIGHT = {"CRITICAL": 10, "HIGH": 6, "MEDIUM": 3, "LOW": 1}
@@ -732,7 +732,7 @@ RULES: List[Dict] = [
 
     # ── DATABASE ────────────────────────────────────────────────────────────
     {"id": "D001", "name": "MissingTransactionCommit", "cat": "DATABASE", "sev": "CRITICAL",
-     "pattern": r"(?:begin|begin_transaction|session\.begin)\b(?!.*\bcommit\b)",
+     "pattern": None,  # Handled structurally by DBIntelligenceLayer (bounded transaction scope analysis)
      "fix": "Ensure every transaction code path calls commit() on success and rollback() on exception.",
      "complexity": "SEMI",
      "desc": "Transactions opened without guaranteed commit/rollback cause data inconsistency and row locks."},
@@ -744,7 +744,7 @@ RULES: List[Dict] = [
      "desc": "Unclosed DB connections exhaust the connection pool, causing 503 errors under load."},
 
     {"id": "D003", "name": "NplusOneQuery",          "cat": "DATABASE", "sev": "HIGH",
-     "pattern": r"for\s+\w+\s+in\s+\w+.*:\s*\n(?:.*\n)*?.*(?:execute|filter|query)\s*\(",
+     "pattern": None,  # Handled by DBIntelligenceLayer.QUERY_IN_LOOP_RE (bounded {0,300})
      "fix": "Use JOIN, prefetch_related(), or batch fetch outside the loop.",
      "complexity": "MANUAL",
      "desc": "N+1 query pattern executes one DB query per loop iteration — catastrophic at scale."},
@@ -756,7 +756,7 @@ RULES: List[Dict] = [
      "desc": "SELECT * fetches unnecessary columns, wastes network bandwidth and breaks column-order assumptions."},
 
     {"id": "D005", "name": "MissingQueryLimit",      "cat": "DATABASE", "sev": "MEDIUM",
-     "pattern": r"SELECT\s+.+FROM\s+\w+(?:\s+WHERE\s+.+)?(?<!\bLIMIT\b\s+\d+)\s*[;'\"]",
+     "pattern": r"(?i)\bSELECT\b(?:(?!\bLIMIT\b).)*\bFROM\b\s+\w+\s*;",  # line-bounded: SELECT..FROM..; with no LIMIT
      "fix": "Add LIMIT clause to all queries that could return unbounded result sets.",
      "complexity": "SEMI",
      "desc": "Unbounded queries can return millions of rows, exhausting memory and freezing the application."},
@@ -780,7 +780,7 @@ RULES: List[Dict] = [
      "desc": "Undersized connection pool causes connection queuing and 503 errors under concurrent load."},
 
     {"id": "D009", "name": "MissingRollbackOnException", "cat": "DATABASE", "sev": "CRITICAL",
-     "pattern": r"except\s+(?:Exception|\w+Error)[^:]*:\s*\n(?:.*\n)*?(?!.*rollback)",
+     "pattern": None,  # Handled structurally by DBIntelligenceLayer (transaction commit/rollback balance)
      "fix": "Add session.rollback() or conn.rollback() in the except block before re-raising.",
      "complexity": "SEMI",
      "desc": "Missing rollback on DB exceptions leaves transactions open, causing lock contention."},
@@ -799,7 +799,8 @@ RULES: List[Dict] = [
      "desc": "Classes exceeding 500 lines with 20+ methods violate Single Responsibility and resist testing."},
 
     {"id": "A002", "name": "DeepNesting",             "cat": "ARCHITECTURE", "sev": "MEDIUM",
-     "pattern": r"^(\s{16,}|\t{4,})\S",
+     "pattern": r"^(\s{20,}|\t{5,})\S",
+     "collapse": True,   # Collapse consecutive deeply-nested lines into one finding per block
      "fix": "Extract deeply nested blocks into named functions. Use early return to reduce nesting.",
      "complexity": "MANUAL",
      "desc": "Nesting deeper than 4 levels dramatically increases cognitive complexity and bug density."},
@@ -829,7 +830,8 @@ RULES: List[Dict] = [
      "desc": "HTTP calls without a timeout block indefinitely, exhausting thread pool under slow responses."},
 
     {"id": "A007", "name": "BlockingIOInAsync",       "cat": "ARCHITECTURE", "sev": "HIGH",
-     "pattern": r"async def\s+\w+[^:]*:.*\n(?:.*\n)*?.*(?:time\.sleep|requests\.|open\()",
+     "pattern": r"async def\s+\w+[^:]*:[\s\S]{0,400}?(?:time\.sleep|requests\.|open\s*\()",
+     "multiline": True,
      "fix": "Replace blocking I/O with async equivalents: asyncio.sleep, aiohttp, aiofiles.",
      "complexity": "MANUAL",
      "desc": "Blocking I/O inside async functions defeats the event loop and starves all other coroutines."},
@@ -935,18 +937,21 @@ RULES: List[Dict] = [
     # ── TRANSACTION RULES (SIGIF2-specific) ─────────────────────────────────
     {"id": "T001", "name": "TransactionWithoutCommit",  "cat": "TRANSACTION", "sev": "CRITICAL",
      "pattern": r"(?:session|conn|connection)\.(begin|begin_transaction)\(\)(?![\s\S]{0,500}\.commit\(\))",
+     "multiline": True,
      "fix": "Use context manager: with session.begin(): ... or explicitly call commit() on success.",
      "complexity": "SEMI",
      "desc": "Transaction opened without guaranteed commit causes all writes to be silently discarded."},
 
     {"id": "T002", "name": "MissingRollback",          "cat": "TRANSACTION", "sev": "CRITICAL",
      "pattern": r"(?:session|conn)\.commit\(\)(?![\s\S]{0,200}rollback)",
+     "multiline": True,
      "fix": "Wrap in try/except: try: session.commit() except: session.rollback(); raise",
      "complexity": "SEMI",
      "desc": "Without rollback on commit failure, partial writes can leave data in an inconsistent state."},
 
     {"id": "T003", "name": "NestedTransactionRisk",   "cat": "TRANSACTION", "sev": "HIGH",
-     "pattern": r"(?:session|conn)\.(begin|begin_nested)\(\).*\n(?:.*\n){0,20}.*(?:session|conn)\.(begin|begin_nested)\(\)",
+     "pattern": r"(?:session|conn)\.(begin|begin_nested)\(\)[\s\S]{0,400}?(?:session|conn)\.(begin|begin_nested)\(\)",
+     "multiline": True,
      "fix": "Use savepoints for nested transactions: session.begin_nested() (SAVEPOINT in SQLite/PostgreSQL).",
      "complexity": "MANUAL",
      "desc": "Nested transactions without savepoints behave unpredictably across different database backends."},
@@ -967,33 +972,65 @@ RULES: List[Dict] = [
 
 class BugRuleEngine:
     """
-    Applies all 52 formal rules to source and config content.
+    Applies all 46 formal rules to source and config content.
     Challenge 1: formal definition of what constitutes a bug.
     Each rule has: id, category, severity, fix, complexity, and confidence.
     """
 
+    # Line-oriented rules are matched against one line at a time, so a greedy
+    # `.` can never span newlines and trigger catastrophic backtracking.
+    # Only rules flagged `multiline: True` (all bounded with [\s\S]{0,N}) are
+    # run against the full file content.
+    MAX_SCAN_LINES = 50000   # Safety cap: skip pathologically large generated files
+
     def __init__(self):
-        self._compiled = {}
+        self._line_rules = {}   # rule_id -> compiled pattern (matched per line)
+        self._multi_rules = {}  # rule_id -> compiled pattern (matched on full content)
         for rule in RULES:
-            if rule.get("pattern"):
-                try:
-                    self._compiled[rule["id"]] = re.compile(
-                        rule["pattern"], re.MULTILINE | re.DOTALL)
-                except re.error:
-                    pass
+            if not rule.get("pattern"):
+                continue
+            try:
+                if rule.get("multiline"):
+                    self._multi_rules[rule["id"]] = re.compile(rule["pattern"])
+                else:
+                    self._line_rules[rule["id"]] = re.compile(rule["pattern"])
+            except re.error as e:
+                log.warning("Rule %s failed to compile and was skipped: %s",
+                            rule["id"], e)
 
     def scan_text(self, content: str, file_path: str,
                   plugin: Optional[LanguagePlugin] = None) -> List[Dict]:
         """Run all applicable regex rules + language plugin rules against content."""
         results = []
         lines   = content.splitlines()
+        if len(lines) > self.MAX_SCAN_LINES:
+            log.warning("Skipping regex scan of %s (%d lines exceeds cap)",
+                        file_path, len(lines))
+            return results
+        rules_by_id = {r["id"]: r for r in RULES}
 
-        for rule in RULES:
-            if not rule.get("pattern"):
+        # ── Line-oriented rules: bounded to a single short line each ──────────
+        last_fired: Dict[str, int] = {}   # rule_id -> previous matched line (for collapse)
+        for i, line in enumerate(lines, 1):
+            if not line.strip():
                 continue
-            pat = self._compiled.get(rule["id"])
-            if not pat:
-                continue
+            for rid, pat in self._line_rules.items():
+                if pat.search(line):
+                    rule = rules_by_id[rid]
+                    # Collapse consecutive runs (e.g. DeepNesting) into one finding
+                    if rule.get("collapse") and last_fired.get(rid) == i - 1:
+                        last_fired[rid] = i
+                        continue
+                    last_fired[rid] = i
+                    results.append({
+                        "rule": rule, "line": i,
+                        "evidence": line.strip()[:200],
+                        "confidence": self._confidence(rule, line),
+                    })
+
+        # ── Multi-line rules: bounded [\s\S]{0,N} quantifiers only ────────────
+        for rid, pat in self._multi_rules.items():
+            rule = rules_by_id[rid]
             for m in pat.finditer(content):
                 line_no = content[:m.start()].count("\n") + 1
                 evidence = lines[line_no-1].strip() if line_no <= len(lines) else m.group()[:80]
@@ -1313,8 +1350,10 @@ class RiskMatrix:
         if cplx == "ARCHITECTURAL":
             return "ARCHITECTURAL", False, True
 
+        # AUTO_RULES is a hand-curated allow-list of safe, deterministic,
+        # fully-reversible transforms — so a modest confidence floor is enough.
         if cplx == "AUTO" and finding.rule_id in self.AUTO_RULES \
-                and finding.confidence >= 0.85:
+                and finding.confidence >= 0.70:
             return "LOW", True, False
 
         if cplx in ("AUTO", "SEMI") and finding.confidence >= 0.75:
