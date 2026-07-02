@@ -1,0 +1,55 @@
+name: Deploy TTMIP live demo to GitHub Pages
+
+# Builds the self-contained single-file demo of the TTMIP React app and
+# publishes it to GitHub Pages. The demo runs entirely on its built-in data
+# (no backend required), so it works as a static site.
+#
+# One-time setup (repo owner): Settings → Pages → Source: "GitHub Actions".
+# Runs only on the default branch (+ manual dispatch): the `github-pages`
+# environment restricts deploys to the default branch, so running on feature
+# branches can never deploy and only produces noisy failing checks.
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ttmip/web-react
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Build single-file demo
+        run: npm run build:demo
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ttmip/demo
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

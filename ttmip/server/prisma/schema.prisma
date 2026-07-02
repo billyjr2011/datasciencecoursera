@@ -1,0 +1,343 @@
+// TTMIP database schema — source of truth for the timber-intelligence domain.
+// Run `npm run prisma:migrate` to apply.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum Quality {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum AlertSeverity {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum EsgRisk {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CertType {
+  FSC
+  PEFC
+  BOTH
+  NONE
+}
+
+enum CertStatus {
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  NONE
+}
+
+enum DdraStatus {
+  COMPLIANT
+  UNDER_REVIEW
+  NON_COMPLIANT
+  CRITICAL
+}
+
+enum UserRole {
+  PRODUCER
+  TRADER
+  BUYER
+  ANALYST
+  REGULATOR
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+}
+
+enum FeedStatus {
+  LIVE
+  DELAYED
+  DOWN
+}
+
+// ───────────────────────── Auth ──────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  organization String?
+  role         UserRole @default(TRADER)
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+
+  @@map("users")
+}
+
+// ─────────────────── Subscriptions ───────────────────────
+
+model SubscriptionPlan {
+  id            String   @id @default(uuid())
+  code          String   @unique // FREE, PRODUCER, TRADER_PRO, ENTERPRISE
+  name          String
+  audience      String // who the plan is designed for
+  priceUsd      Float    @map("price_usd") // per month
+  features      String[] // feature bullets
+  maxSeats      Int      @map("max_seats")
+  apiRateLimit  Int      @map("api_rate_limit") // requests/min
+  feedDelayMins Int      @map("feed_delay_mins") // 0 = real-time
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String             @map("user_id")
+  planId    String             @map("plan_id")
+  status    SubscriptionStatus @default(TRIALING)
+  startedAt DateTime           @default(now()) @map("started_at")
+  renewsAt  DateTime           @map("renews_at")
+
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+// ─────────────────────── Reference ───────────────────────
+
+model Species {
+  id        String        @id @default(uuid())
+  name      String        @unique
+  createdAt DateTime      @default(now()) @map("created_at")
+  prices    PriceRecord[]
+
+  @@map("species")
+}
+
+model Market {
+  id       String        @id @default(uuid())
+  code     String        @unique // EU, CN, FR, …
+  name     String
+  flag     String
+  color    String
+  currency String
+  volume   Int // baseline export volume (000 m³)
+  price    Int // baseline price USD/m³
+  growth   Float // YoY %
+  share    Float // % of total exports
+  region   String
+  prices   PriceRecord[]
+
+  @@index([region])
+  @@map("markets")
+}
+
+model Platform {
+  id           String     @id @default(uuid())
+  name         String     @unique
+  region       String     @default("Global") // primary coverage region
+  feedType     String     @default("REST") @map("feed_type") // REST, SFTP, SCRAPE, EDI
+  url          String     @default("")
+  status       FeedStatus @default(LIVE)
+  pollSeconds  Int        @default(300) @map("poll_seconds")
+  lastSyncAt   DateTime?  @map("last_sync_at")
+  recordCount  Int        @default(0) @map("record_count")
+  prices       PriceRecord[]
+
+  @@map("platforms")
+}
+
+// ─────────────── SIGIF2 production quotas ─────────────────
+// Mirror of quota data pulled from Cameroon's SIGIF2 (Système Informatisé de
+// Gestion des Informations Forestières, 2nd gen). When SIGIF2_BASE_URL is
+// configured the sync job refreshes this table; otherwise seeded reference
+// data is served.
+
+model SigifQuota {
+  id           String   @id @default(uuid())
+  concession   String // e.g. UFA 10-052
+  titleHolder  String   @map("title_holder") // company holding the title
+  speciesName  String   @map("species_name")
+  yearlyQuota  Float    @map("yearly_quota") // m³ annual allowable cut
+  usedVolume   Float    @map("used_volume") // m³ already harvested/sold
+  availableM3  Float    @map("available_m3") // m³ remaining for sale
+  permitNumber String   @map("permit_number")
+  validUntil   DateTime @map("valid_until")
+  syncedAt     DateTime @default(now()) @map("synced_at")
+
+  @@unique([concession, speciesName])
+  @@index([speciesName])
+  @@map("sigif_quotas")
+}
+
+model Company {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  esgScores    EsgScore[]
+  certificates Certificate[]
+  ddraRecords  DdraRecord[]
+
+  @@map("companies")
+}
+
+// ───────────────────────── Prices ────────────────────────
+
+model PriceRecord {
+  id         String   @id @default(uuid())
+  platformId String   @map("platform_id")
+  speciesId  String   @map("species_id")
+  marketId   String   @map("market_id")
+  price      Float // USD/m³
+  volume     Int // m³
+  quality    Quality
+  recordedAt DateTime @map("recorded_at")
+
+  platform Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  species  Species  @relation(fields: [speciesId], references: [id], onDelete: Cascade)
+  market   Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([speciesId])
+  @@index([marketId])
+  @@index([quality])
+  @@index([recordedAt])
+  @@map("price_records")
+}
+
+// ─────────────────────── Indices ─────────────────────────
+
+model PriceIndex {
+  id          String       @id @default(uuid())
+  code        String       @unique // GSPI, ESPI
+  name        String
+  description String?
+  points      IndexPoint[]
+
+  @@map("price_indices")
+}
+
+model IndexPoint {
+  id      String     @id @default(uuid())
+  indexId String     @map("index_id")
+  date    DateTime
+  value   Float
+  index   PriceIndex @relation(fields: [indexId], references: [id], onDelete: Cascade)
+
+  @@unique([indexId, date])
+  @@index([indexId, date])
+  @@map("index_points")
+}
+
+// ───────────────────────── ESG ───────────────────────────
+
+model EsgScore {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  env        Int
+  soc        Int
+  gov        Int
+  overall    Float
+  risk       EsgRisk
+  assessedAt DateTime @map("assessed_at")
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, assessedAt])
+  @@map("esg_scores")
+}
+
+// ─────────────────── Certification ───────────────────────
+
+model Certificate {
+  id        String     @id @default(uuid())
+  code      String     @unique // CONC-001
+  companyId String     @map("company_id")
+  type      CertType
+  issuedAt  DateTime   @map("issued_at")
+  expiresAt DateTime   @map("expires_at")
+  status    CertStatus
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([type])
+  @@map("certificates")
+}
+
+// ─────────────────── Deforestation ───────────────────────
+
+model DeforestationAlert {
+  id         String        @id @default(uuid())
+  code       String        @unique // ALERT-YYYYMMDD-001
+  lat        Float
+  lng        Float
+  confidence Float // 0..1
+  alertDate  DateTime      @map("alert_date")
+  areaHa     Float         @map("area_ha")
+  source     String // GFW, WRI, NASA, EU JRC
+  zone       String // protected area / region
+  severity   AlertSeverity
+
+  @@index([severity, alertDate])
+  @@map("deforestation_alerts")
+}
+
+// ───────── Due Diligence Risk Assessment (EUDR) ──────────
+
+model DdraRecord {
+  id         String     @id @default(uuid())
+  code       String     @unique // SHIP-YYYYMM-0001
+  companyId  String     @map("company_id")
+  riskScore  Float      @map("risk_score") // 0..10
+  status     DdraStatus
+  assessedAt DateTime   @map("assessed_at")
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("ddra_records")
+}
+
+// ──────────────────── Regulatory ─────────────────────────
+
+model Regulation {
+  id              String   @id @default(uuid())
+  code            String   @unique // EUDR, EUTR, FLEGT, …
+  name            String
+  fullName        String   @map("full_name")
+  flag            String
+  market          String
+  region          String
+  status          String
+  effectiveDate   String   @map("effective_date")
+  lastChange      String   @map("last_change")
+  priceImpact     Float    @map("price_impact") // % impact on price
+  complianceCost  String   @map("compliance_cost")
+  risk            String
+  complianceRate  Int      @map("compliance_rate")
+  camStatus       String   @map("cam_status")
+  description     String
+  keyRequirements String[] @map("key_requirements")
+  tags            Json
+  timeline        Json
+
+  @@index([region])
+  @@map("regulations")
+}

@@ -1,0 +1,23 @@
+{
+  "name": "ttmip-web-react",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "TTMIP — Tropical Timber Market Intelligence Platform (React + Vite)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:demo": "cross-env SINGLEFILE=1 vite build --outDir ../demo --emptyOutDir",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "cross-env": "^7.0.3",
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.0.3"
+  }
+}
