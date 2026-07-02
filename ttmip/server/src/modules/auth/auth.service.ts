@@ -8,6 +8,8 @@ interface PublicUser {
   id: string;
   email: string;
   name: string;
+  role?: string;
+  organization?: string | null;
 }
 
 interface AuthResult {
@@ -16,10 +18,12 @@ interface AuthResult {
   refreshToken: string;
 }
 
-const toPublic = (u: { id: string; email: string; name: string }): PublicUser => ({
+const toPublic = (u: { id: string; email: string; name: string; role?: string; organization?: string | null }): PublicUser => ({
   id: u.id,
   email: u.email,
   name: u.name,
+  role: u.role,
+  organization: u.organization,
 });
 
 const issueTokens = (user: PublicUser): AuthResult => ({
@@ -36,6 +40,8 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
     data: {
       email: input.email,
       name: input.name,
+      organization: input.organization,
+      role: input.role,
       passwordHash: await hashPassword(input.password),
     },
   });

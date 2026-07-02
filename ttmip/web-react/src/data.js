@@ -189,3 +189,81 @@ export function makeApi(apiBase) {
     },
   };
 }
+
+/* ─────────── 22-platform directory, plans, SIGIF2 (demo mirrors) ────── */
+export const PLATFORMS_22 = [
+  ['Fastmarkets', 'Global', 'REST'], ['ITTO MIS', 'Global', 'REST'], ['Timber Exchange', 'Global', 'REST'],
+  ['BVRio', 'LATAM', 'REST'], ['Hardwood Review', 'USA', 'SFTP'], ['WoodMarket', 'EU', 'SCRAPE'],
+  ['GlobalWood', 'Global', 'SCRAPE'], ['Lesprom Network', 'CIS/EU', 'REST'], ['TimberWeb', 'Global', 'REST'],
+  ['Wood Resources Intl', 'Global', 'SFTP'], ['Forest2Market', 'USA', 'REST'], ['RISI Fastmarkets', 'Global', 'REST'],
+  ['UN Comtrade', 'Global', 'REST'], ['Eurostat COMEXT', 'EU', 'REST'], ['ITC TradeMap', 'Global', 'REST'],
+  ['Panjiva S&P', 'Global', 'REST'], ['Timbeter', 'Global', 'REST'], ['Open Timber Portal', 'Congo Basin', 'REST'],
+  ['ATIBT Market Watch', 'Congo Basin', 'SCRAPE'], ['CommoPrices', 'Global', 'REST'],
+  ['IHB Timber Exchange', 'EU', 'SCRAPE'], ['Vietnam Timber Assoc', 'Asia', 'SCRAPE'],
+].map(([name, region, feedType], i) => ({
+  name, region, feedType, status: i % 9 === 4 ? 'DELAYED' : 'LIVE',
+  pollSeconds: [300, 900, 1800, 3600][i % 4], recordCount: 120 + i * 37,
+  lastSyncAt: new Date(Date.now() - (i % 7) * 240000).toISOString(),
+}));
+
+export const PLANS_4 = [
+  { code: 'FREE', name: 'Community', audience: 'Students, researchers, observers', priceUsd: 0, maxSeats: 1, feedDelayMins: 60, features: ['Delayed prices (60 min)', 'Dashboard & indices', 'FAQ & publications'] },
+  { code: 'PRODUCER', name: 'Producer', audience: 'Concession holders & sawmills', priceUsd: 149, maxSeats: 5, feedDelayMins: 15, features: ['SIGIF2 quota view', 'FOB calculator', '15-min delayed feeds', 'ESG & certification tracking'] },
+  { code: 'TRADER_PRO', name: 'Trader Pro', audience: 'Exporters, importers & trading desks', priceUsd: 449, maxSeats: 20, feedDelayMins: 0, features: ['Real-time 22-platform feeds', 'FOB matrix & projections', 'Trading desk & technical analysis', 'API access'] },
+  { code: 'ENTERPRISE', name: 'Enterprise / Regulator', audience: 'Ministries, banks, large groups', priceUsd: 1490, maxSeats: 999, feedDelayMins: 0, features: ['Everything in Trader Pro', 'SIGIF2 write-back interlink', 'Custom compliance reports', 'Dedicated support & SLA'] },
+];
+
+export const SIGIF_QUOTAS = [
+  ['UFA 10-052', 'Pallisco', 'Sapelli', 18500, 11200], ['UFA 10-052', 'Pallisco', 'Ayous', 24200, 9800],
+  ['UFA 09-024', 'Wijma Cameroon', 'Azobé', 12800, 7400], ['UFA 09-024', 'Wijma Cameroon', 'Tali', 9600, 3100],
+  ['UFA 00-004', 'Alpicam', 'Iroko', 7400, 5900], ['UFA 00-004', 'Alpicam', 'Doussié', 4200, 2050],
+  ['UFA 10-030', 'SFID', 'Sipo', 8900, 4300], ['UFA 10-030', 'SFID', 'Sapelli', 15300, 12750],
+  ['UFA 08-011', 'GRUMCAM', 'Padouk', 6800, 1900], ['UFA 08-011', 'GRUMCAM', 'Movingui', 5200, 2600],
+  ['UFA 11-005', 'SIM', 'Frake', 16700, 8200], ['UFA 11-005', 'SIM', 'Bilinga', 5900, 5900],
+  ['UFA 10-047', 'FIPCAM', 'Wengé', 2400, 950], ['UFA 10-047', 'FIPCAM', 'Moabi', 3100, 1400],
+].map(([concession, titleHolder, speciesName, yearlyQuota, usedVolume], i) => ({
+  concession, titleHolder, speciesName, yearlyQuota, usedVolume,
+  availableM3: yearlyQuota - usedVolume,
+  permitNumber: `CAM-2026-${String(31 + i * 9).padStart(4, '0')}`,
+  validUntil: new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10),
+}));
+
+/* ─────────────── FOB Douala calculator (mirrors the API) ────────────── */
+// Same formula as server/src/modules/fob/fob.service.ts — used in DEMO mode
+// and as the instant preview; LIVE mode replaces the CIF anchor with the
+// volume-weighted mean of ingested quotes via GET /api/v1/fob.
+const FREIGHT = { EU: 96, Asia: 118, USA: 132, Other: 104 };
+const COMPLIANCE = { EU: 26, USA: 9, Asia: 4, Other: 6 };
+const QUALITY_F = { High: 1.0, Medium: 0.88, Low: 0.72 };
+export function fobLocal({ species, destination, quality = 'High' }) {
+  const mk = MARKETS_15.find((m) => m.code === destination) || MARKETS_15[0];
+  const cifAnchor = mk.price;
+  const qualityFactor = QUALITY_F[quality];
+  const adjustedCif = cifAnchor * qualityFactor;
+  const freight = FREIGHT[mk.region] ?? FREIGHT.Other;
+  const insurance = adjustedCif * 0.012;
+  const compliance = COMPLIANCE[mk.region] ?? COMPLIANCE.Other;
+  const traderMargin = adjustedCif * 0.07;
+  const fobDouala = Math.max(0, adjustedCif - freight - insurance - compliance - traderMargin);
+  const r2 = (n) => +n.toFixed(2);
+  return {
+    species, destination: mk.code, destName: mk.name, quality, sampleSize: 0,
+    cifAnchor: r2(cifAnchor), qualityFactor, adjustedCif: r2(adjustedCif),
+    freight: r2(freight), insurance: r2(insurance), compliance: r2(compliance),
+    traderMargin: r2(traderMargin), fobDouala: r2(fobDouala), fobXaf: Math.round(fobDouala * 585),
+  };
+}
+
+/* Same-origin GET returning `.data`, throws when the API is unreachable. */
+export async function apiGet(path, params) {
+  const base = ((typeof window !== 'undefined' && window.TTMIP_API_BASE) || '') + '/api/v1';
+  let url = base + path;
+  if (params) {
+    const qs = Object.entries(params).filter(([, v]) => v != null && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+    if (qs) url += '?' + qs;
+  }
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(`API ${res.status} ${path}`);
+  return (await res.json()).data;
+}

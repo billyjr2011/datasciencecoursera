@@ -50,7 +50,56 @@ const MARKETS_15 = [
   { code: 'AE', name: 'UAE', flag: '🇦🇪', color: '#7B52C8', currency: 'USD', volume: 180, price: 980, growth: 9.2, share: 1.3, region: 'Other' },
 ];
 
-const PLATFORMS = ['Fastmarkets', 'ITTO MIS', 'Timber Exchange', 'BVRio', 'Hardwood Review', 'WoodMarket'];
+// 22 international market platforms TTMIP ingests (see src/ingestion/connectors.ts)
+const PLATFORMS = [
+  { name: 'Fastmarkets', region: 'Global', feedType: 'REST', url: 'https://www.fastmarkets.com/forest-products', pollSeconds: 300 },
+  { name: 'ITTO MIS', region: 'Global', feedType: 'REST', url: 'https://www.itto.int/market_information_service', pollSeconds: 1800 },
+  { name: 'Timber Exchange', region: 'Global', feedType: 'REST', url: 'https://www.timberexchange.com', pollSeconds: 300 },
+  { name: 'BVRio', region: 'LATAM', feedType: 'REST', url: 'https://www.bvrio.org', pollSeconds: 900 },
+  { name: 'Hardwood Review', region: 'USA', feedType: 'SFTP', url: 'https://hardwoodreview.com', pollSeconds: 3600 },
+  { name: 'WoodMarket', region: 'EU', feedType: 'SCRAPE', url: 'https://woodmarket.eu', pollSeconds: 900 },
+  { name: 'GlobalWood', region: 'Global', feedType: 'SCRAPE', url: 'https://www.globalwood.org', pollSeconds: 1800 },
+  { name: 'Lesprom Network', region: 'CIS/EU', feedType: 'REST', url: 'https://www.lesprom.com', pollSeconds: 900 },
+  { name: 'TimberWeb', region: 'Global', feedType: 'REST', url: 'https://www.timberweb.com', pollSeconds: 900 },
+  { name: 'Wood Resources Intl', region: 'Global', feedType: 'SFTP', url: 'https://woodprices.com', pollSeconds: 3600 },
+  { name: 'Forest2Market', region: 'USA', feedType: 'REST', url: 'https://www.forest2market.com', pollSeconds: 1800 },
+  { name: 'RISI Fastmarkets', region: 'Global', feedType: 'REST', url: 'https://www.risiinfo.com', pollSeconds: 1800 },
+  { name: 'UN Comtrade', region: 'Global', feedType: 'REST', url: 'https://comtradeplus.un.org', pollSeconds: 86400 },
+  { name: 'Eurostat COMEXT', region: 'EU', feedType: 'REST', url: 'https://ec.europa.eu/eurostat/comext', pollSeconds: 86400 },
+  { name: 'ITC TradeMap', region: 'Global', feedType: 'REST', url: 'https://www.trademap.org', pollSeconds: 86400 },
+  { name: 'Panjiva S&P', region: 'Global', feedType: 'REST', url: 'https://panjiva.com', pollSeconds: 3600 },
+  { name: 'Timbeter', region: 'Global', feedType: 'REST', url: 'https://timbeter.com', pollSeconds: 900 },
+  { name: 'Open Timber Portal', region: 'Congo Basin', feedType: 'REST', url: 'https://opentimberportal.org', pollSeconds: 3600 },
+  { name: 'ATIBT Market Watch', region: 'Congo Basin', feedType: 'SCRAPE', url: 'https://www.atibt.org', pollSeconds: 3600 },
+  { name: 'CommoPrices', region: 'Global', feedType: 'REST', url: 'https://commoprices.com', pollSeconds: 900 },
+  { name: 'IHB Timber Exchange', region: 'EU', feedType: 'SCRAPE', url: 'https://www.ihb.de', pollSeconds: 900 },
+  { name: 'Vietnam Timber Assoc', region: 'Asia', feedType: 'SCRAPE', url: 'https://goviet.org.vn', pollSeconds: 3600 },
+];
+
+const PLANS = [
+  { code: 'FREE', name: 'Community', audience: 'Students, researchers, observers', priceUsd: 0, maxSeats: 1, apiRateLimit: 30, feedDelayMins: 60, features: ['Delayed prices (60 min)', 'Dashboard & indices', 'FAQ & publications'] },
+  { code: 'PRODUCER', name: 'Producer', audience: 'Concession holders & sawmills', priceUsd: 149, maxSeats: 5, apiRateLimit: 120, feedDelayMins: 15, features: ['SIGIF2 quota view', 'FOB calculator', '15-min delayed feeds', 'ESG & certification tracking'] },
+  { code: 'TRADER_PRO', name: 'Trader Pro', audience: 'Exporters, importers & trading desks', priceUsd: 449, maxSeats: 20, apiRateLimit: 600, feedDelayMins: 0, features: ['Real-time 22-platform feeds', 'FOB matrix & projections', 'Trading desk & technical analysis', 'API access'] },
+  { code: 'ENTERPRISE', name: 'Enterprise / Regulator', audience: 'Ministries, banks, large groups', priceUsd: 1490, maxSeats: 999, apiRateLimit: 3000, feedDelayMins: 0, features: ['Everything in Trader Pro', 'SIGIF2 write-back interlink', 'Custom compliance reports', 'Dedicated support & SLA'] },
+];
+
+// SIGIF2 quota mirror — concessions (UFA) with annual allowable cut.
+const SIGIF_QUOTAS = [
+  { concession: 'UFA 10-052', titleHolder: 'Pallisco', speciesName: 'Sapelli', yearlyQuota: 18500, usedVolume: 11200, permitNumber: 'CAM-2026-0113' },
+  { concession: 'UFA 10-052', titleHolder: 'Pallisco', speciesName: 'Ayous', yearlyQuota: 24200, usedVolume: 9800, permitNumber: 'CAM-2026-0114' },
+  { concession: 'UFA 09-024', titleHolder: 'Wijma Cameroon', speciesName: 'Azobé', yearlyQuota: 12800, usedVolume: 7400, permitNumber: 'CAM-2026-0087' },
+  { concession: 'UFA 09-024', titleHolder: 'Wijma Cameroon', speciesName: 'Tali', yearlyQuota: 9600, usedVolume: 3100, permitNumber: 'CAM-2026-0088' },
+  { concession: 'UFA 00-004', titleHolder: 'Alpicam', speciesName: 'Iroko', yearlyQuota: 7400, usedVolume: 5900, permitNumber: 'CAM-2026-0031' },
+  { concession: 'UFA 00-004', titleHolder: 'Alpicam', speciesName: 'Doussié', yearlyQuota: 4200, usedVolume: 2050, permitNumber: 'CAM-2026-0032' },
+  { concession: 'UFA 10-030', titleHolder: 'SFID', speciesName: 'Sipo', yearlyQuota: 8900, usedVolume: 4300, permitNumber: 'CAM-2026-0156' },
+  { concession: 'UFA 10-030', titleHolder: 'SFID', speciesName: 'Sapelli', yearlyQuota: 15300, usedVolume: 12750, permitNumber: 'CAM-2026-0157' },
+  { concession: 'UFA 08-011', titleHolder: 'GRUMCAM', speciesName: 'Padouk', yearlyQuota: 6800, usedVolume: 1900, permitNumber: 'CAM-2026-0064' },
+  { concession: 'UFA 08-011', titleHolder: 'GRUMCAM', speciesName: 'Movingui', yearlyQuota: 5200, usedVolume: 2600, permitNumber: 'CAM-2026-0065' },
+  { concession: 'UFA 11-005', titleHolder: 'SIM', speciesName: 'Frake', yearlyQuota: 16700, usedVolume: 8200, permitNumber: 'CAM-2026-0178' },
+  { concession: 'UFA 11-005', titleHolder: 'SIM', speciesName: 'Bilinga', yearlyQuota: 5900, usedVolume: 5900, permitNumber: 'CAM-2026-0179' },
+  { concession: 'UFA 10-047', titleHolder: 'FIPCAM', speciesName: 'Wengé', yearlyQuota: 2400, usedVolume: 950, permitNumber: 'CAM-2026-0142' },
+  { concession: 'UFA 10-047', titleHolder: 'FIPCAM', speciesName: 'Moabi', yearlyQuota: 3100, usedVolume: 1400, permitNumber: 'CAM-2026-0143' },
+];
 const COMPANIES = ['Société Forestière', 'Pallisco', 'Wijma Cameroon', 'Alpicam', 'SFID', 'GRUMCAM', 'SIM', 'FIPCAM'];
 
 const REGULATIONS = [
@@ -164,6 +213,9 @@ async function main() {
   console.log('🌱 Seeding TTMIP…');
 
   // Clean slate (respect FK order via cascades on parents).
+  await prisma.subscription.deleteMany();
+  await prisma.subscriptionPlan.deleteMany();
+  await prisma.sigifQuota.deleteMany();
   await prisma.priceRecord.deleteMany();
   await prisma.indexPoint.deleteMany();
   await prisma.priceIndex.deleteMany();
@@ -178,12 +230,13 @@ async function main() {
   await prisma.company.deleteMany();
   await prisma.user.deleteMany();
 
-  // Demo user
-  await prisma.user.create({
+  // Demo user (Enterprise subscriber)
+  const demoUser = await prisma.user.create({
     data: {
       email: 'analyst@minfof.cm',
       name: 'MINFOF Analyst',
       organization: 'Ministry of Forests & Wildlife',
+      role: 'REGULATOR',
       passwordHash: await hashPassword('password123'),
     },
   });
@@ -191,9 +244,25 @@ async function main() {
   // Reference data
   await prisma.species.createMany({ data: SPECIES_30.map((name) => ({ name })) });
   await prisma.market.createMany({ data: MARKETS_15 });
-  await prisma.platform.createMany({ data: PLATFORMS.map((name) => ({ name })) });
+  await prisma.platform.createMany({ data: PLATFORMS });
   await prisma.company.createMany({ data: COMPANIES.map((name) => ({ name })) });
   await prisma.regulation.createMany({ data: REGULATIONS });
+
+  // Subscription plans + demo subscription
+  await prisma.subscriptionPlan.createMany({ data: PLANS });
+  const enterprise = await prisma.subscriptionPlan.findUnique({ where: { code: 'ENTERPRISE' } });
+  await prisma.subscription.create({
+    data: { userId: demoUser.id, planId: enterprise!.id, status: 'ACTIVE', renewsAt: new Date(Date.now() + 365 * DAY) },
+  });
+
+  // SIGIF2 quota mirror
+  await prisma.sigifQuota.createMany({
+    data: SIGIF_QUOTAS.map((q) => ({
+      ...q,
+      availableM3: q.yearlyQuota - q.usedVolume,
+      validUntil: new Date(Date.now() + 200 * DAY),
+    })),
+  });
 
   const species = await prisma.species.findMany();
   const markets = await prisma.market.findMany();
@@ -279,7 +348,7 @@ async function main() {
     }),
   });
 
-  console.log('✅ Seed complete: 30 species · 15 markets · 200 prices · 30 alerts · 5 regulations');
+  console.log('✅ Seed complete: 30 species · 15 markets · 22 platforms · 4 plans · SIGIF2 quotas');
 }
 
 main()

@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { T, inputStyle } from './theme.js';
 import { Badge, Card, Chip, KpiCard, Table, BarChart, Gauge, LineChart, CandleChart, CameroonMap } from './components.jsx';
 import {
   MARKETS_15, SPECIES_30, REGULATIONS, BROKERS, PUBLICATIONS, ARTICLES, FAQ_DATA,
   SUPPLY_DEMAND, MACRO_DATA, SENTIMENT_NEWS, genIndex, genCandles,
+  PLATFORMS_22, PLANS_4, SIGIF_QUOTAS, fobLocal, apiGet,
 } from './data.js';
 
 /* ─────────────────────────── tone helpers ──────────────────────────── */
@@ -400,5 +401,222 @@ export function AIIntelligence({ data }) {
         ]} />
       </Card>
     </div>
+  );
+}
+
+/* ════════════════════ PLATFORM FEEDS (22 sources) ══════════════════ */
+export function Feeds() {
+  const [platforms, setPlatforms] = useState(PLATFORMS_22);
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    let on = true;
+    apiGet('/feeds').then((d) => { if (on) { setPlatforms(d); setLive(true); } }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  const liveCount = platforms.filter((p) => p.status === 'LIVE').length;
+  const feedTone = (s) => ({ LIVE: 'green', DELAYED: 'yellow', DOWN: 'red' }[s] || 'gray');
+  const ago = (ts) => {
+    if (!ts) return '—';
+    const m = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+    return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : `${Math.round(m / 60)}h ago`;
+  };
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        <KpiCard color={T.green2} label="Connected Platforms" value={platforms.length} meta="international sources" icon="🔌" />
+        <KpiCard color={T.blue2} label="Live Feeds" value={liveCount} chg={`${platforms.length - liveCount} delayed`} meta="streaming now" icon="📡" />
+        <KpiCard color={T.accent} label="Records Ingested" value={platforms.reduce((a, p) => a + (p.recordCount || 0), 0).toLocaleString()} meta="price observations" icon="🗄️" />
+        <KpiCard color={T.purple2} label="Feed Mode" value={live ? 'LIVE' : 'DEMO'} meta={live ? 'ingestion API connected' : 'simulated directory'} icon="🛰️" />
+      </div>
+      <Card title="🔌 22 International Market Platforms">
+        <Table maxHeight={480} rows={platforms} columns={[
+          { key: 'name', label: 'Platform' }, { key: 'region', label: 'Coverage' },
+          { key: 'feedType', label: 'Feed', render: (p) => <Badge tone="blue">{p.feedType}</Badge> },
+          { key: 'pollSeconds', label: 'Poll', align: 'right', render: (p) => p.pollSeconds >= 3600 ? `${p.pollSeconds / 3600}h` : `${p.pollSeconds / 60}m` },
+          { key: 'recordCount', label: 'Records', align: 'right', render: (p) => (p.recordCount || 0).toLocaleString() },
+          { key: 'lastSyncAt', label: 'Last Sync', render: (p) => ago(p.lastSyncAt) },
+          { key: 'status', label: 'Status', render: (p) => <Badge tone={feedTone(p.status)}>● {p.status}</Badge> },
+        ]} />
+      </Card>
+    </>
+  );
+}
+
+/* ═══════════════════ FOB CALCULATOR (Douala) ═══════════════════════ */
+export function FobCalculator() {
+  const [species, setSpecies] = useState('Sapelli');
+  const [dest, setDest] = useState('EU');
+  const [quality, setQuality] = useState('High');
+  const [fob, setFob] = useState(() => fobLocal({ species: 'Sapelli', destination: 'EU', quality: 'High' }));
+  const [matrix, setMatrix] = useState(null);
+  const [live, setLive] = useState(false);
+
+  useEffect(() => {
+    let on = true;
+    setFob(fobLocal({ species, destination: dest, quality })); // instant preview
+    apiGet('/fob', { species, destination: dest, quality })
+      .then((d) => { if (on) { setFob(d); setLive(true); } })
+      .catch(() => { if (on) setLive(false); });
+    return () => { on = false; };
+  }, [species, dest, quality]);
+
+  useEffect(() => {
+    let on = true;
+    apiGet(`/fob/matrix/${encodeURIComponent(species)}`, { quality })
+      .then((d) => { if (on) setMatrix(d); })
+      .catch(() => { if (on) setMatrix(MARKETS_15.map((m) => fobLocal({ species, destination: m.code, quality })).sort((a, b) => b.fobDouala - a.fobDouala)); });
+    return () => { on = false; };
+  }, [species, quality]);
+
+  const CostRow = ({ l, v, neg }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, padding: '5px 0', borderBottom: `1px solid ${T.border}` }}>
+      <span style={{ color: T.text2 }}>{l}</span>
+      <span style={{ fontFamily: 'DM Mono, monospace', color: neg ? T.red2 : T.text }}>{neg ? '−' : ''}${Math.abs(v).toLocaleString()}</span>
+    </div>
+  );
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 14 }}>
+        <Card title="⚙️ Parameters" actions={<Badge tone={live ? 'green' : 'yellow'}>{live ? 'LIVE anchor' : 'Baseline anchor'}</Badge>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div><div style={{ fontSize: 9, color: T.text3, fontFamily: 'DM Mono, monospace', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 4 }}>Species</div>
+              <select value={species} onChange={(e) => setSpecies(e.target.value)} style={{ ...inputStyle, width: '100%' }}>{SPECIES_30.map((s) => <option key={s}>{s}</option>)}</select></div>
+            <div><div style={{ fontSize: 9, color: T.text3, fontFamily: 'DM Mono, monospace', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 4 }}>Destination market</div>
+              <select value={dest} onChange={(e) => setDest(e.target.value)} style={{ ...inputStyle, width: '100%' }}>{MARKETS_15.map((m) => <option key={m.code} value={m.code}>{m.flag} {m.name}</option>)}</select></div>
+            <div><div style={{ fontSize: 9, color: T.text3, fontFamily: 'DM Mono, monospace', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 4 }}>Quality grade</div>
+              <div style={{ display: 'flex', gap: 5 }}>{['High', 'Medium', 'Low'].map((q) => <Chip key={q} active={quality === q} onClick={() => setQuality(q)}>{q}</Chip>)}</div></div>
+            <div style={{ background: T.surface, border: `1px solid ${T.border2}`, borderRadius: 8, padding: '14px 12px', textAlign: 'center', marginTop: 4 }}>
+              <div style={{ fontSize: 9, color: T.text3, fontFamily: 'DM Mono, monospace', letterSpacing: '.12em' }}>FOB DOUALA</div>
+              <div className="syne" style={{ fontSize: 30, fontWeight: 800, color: T.green2, margin: '4px 0' }}>${fob.fobDouala.toLocaleString()}<span style={{ fontSize: 13, opacity: .5 }}>/m³</span></div>
+              <div style={{ fontSize: 10.5, color: T.text2, fontFamily: 'DM Mono, monospace' }}>{fob.fobXaf.toLocaleString()} XAF/m³</div>
+              {fob.sampleSize > 0 && <div style={{ fontSize: 9, color: T.text3, marginTop: 4 }}>anchored on {fob.sampleSize} live quotes</div>}
+            </div>
+          </div>
+        </Card>
+        <Card title={`🧮 Price Build-down — ${species} → ${fob.destName}`}>
+          <CostRow l={`CIF anchor (${fob.sampleSize > 0 ? 'volume-weighted live quotes' : 'market baseline'})`} v={fob.cifAnchor} />
+          <CostRow l={`Quality adjustment ×${fob.qualityFactor}`} v={fob.adjustedCif} />
+          <CostRow l="Ocean freight (Douala → destination)" v={fob.freight} neg />
+          <CostRow l="Marine insurance (1.2% CIF)" v={fob.insurance} neg />
+          <CostRow l="Destination compliance (EUDR / Lacey / CITES)" v={fob.compliance} neg />
+          <CostRow l="Importer / trader margin (7%)" v={fob.traderMargin} neg />
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 2px', fontSize: 13, fontWeight: 700 }}>
+            <span>FOB Douala</span><span className="syne" style={{ color: T.green2 }}>${fob.fobDouala.toLocaleString()}/m³</span>
+          </div>
+          <div style={{ fontSize: 9.5, color: T.text3, marginTop: 10, lineHeight: 1.5 }}>
+            Derived from live international prices across the 22 connected platforms. EU destinations carry the EUDR
+            due-diligence cost (GPS traceability + DDS); the FLEGT simplified pathway no longer applies since VPA termination.
+          </div>
+        </Card>
+      </div>
+      {matrix && (
+        <Card title={`🌍 FOB Matrix — ${species} (${quality}) across all destinations`}>
+          <BarChart items={matrix.slice(0, 10).map((r) => ({ label: r.destName, value: r.fobDouala, display: `$${Math.round(r.fobDouala)}`, color: MARKETS_15.find((m) => m.code === r.destination)?.color || T.accent }))} />
+        </Card>
+      )}
+    </>
+  );
+}
+
+/* ═══════════════════ SIGIF2 QUOTAS INTERLINK ═══════════════════════ */
+export function Sigif() {
+  const [quotas, setQuotas] = useState(SIGIF_QUOTAS);
+  const [live, setLive] = useState(false);
+  const [species, setSpecies] = useState('');
+  useEffect(() => {
+    let on = true;
+    apiGet('/sigif/quotas').then((d) => { if (on && d.length) { setQuotas(d); setLive(true); } }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  const rows = quotas.filter((q) => !species || q.speciesName === species);
+  const totalAvail = rows.reduce((a, q) => a + q.availableM3, 0);
+  const speciesList = [...new Set(quotas.map((q) => q.speciesName))].sort();
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        <KpiCard color={T.camGreen || T.green2} label="Concessions (UFA)" value={new Set(rows.map((q) => q.concession)).size} meta="active titles" icon="🌳" />
+        <KpiCard color={T.blue2} label="Annual Quota" value={`${Math.round(rows.reduce((a, q) => a + q.yearlyQuota, 0) / 1000)}K`} suffix=" m³" meta="allowable cut" icon="📏" />
+        <KpiCard color={T.green2} label="Available for Sale" value={`${Math.round(totalAvail / 1000)}K`} suffix=" m³" meta="uncommitted volume" icon="🟢" />
+        <KpiCard color={T.purple2} label="SIGIF2 Link" value={live ? 'SYNCED' : 'MIRROR'} meta={live ? 'live interlink' : 'seeded mirror data'} icon="🔗" />
+      </div>
+      <Card title="🔗 SIGIF2 — Production Quotas Available for Sale" actions={
+        <select value={species} onChange={(e) => setSpecies(e.target.value)} style={inputStyle}>
+          <option value="">All species</option>{speciesList.map((s) => <option key={s}>{s}</option>)}
+        </select>
+      }>
+        <Table maxHeight={440} rows={rows} columns={[
+          { key: 'concession', label: 'Concession' }, { key: 'titleHolder', label: 'Title Holder' }, { key: 'speciesName', label: 'Species' },
+          { key: 'yearlyQuota', label: 'Quota m³', align: 'right', render: (q) => q.yearlyQuota.toLocaleString() },
+          { key: 'usedVolume', label: 'Used m³', align: 'right', render: (q) => q.usedVolume.toLocaleString() },
+          { key: 'availableM3', label: 'Available m³', align: 'right', render: (q) => <span style={{ color: q.availableM3 > 0 ? T.green2 : T.red2, fontWeight: 700 }}>{q.availableM3.toLocaleString()}</span> },
+          { key: 'pct', label: 'Utilisation', render: (q) => {
+            const pct = Math.min(100, Math.round((q.usedVolume / q.yearlyQuota) * 100));
+            return <div style={{ width: 90, height: 7, background: T.border, borderRadius: 4, overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', background: pct >= 95 ? T.red2 : pct >= 70 ? T.accent2 : T.green2 }} /></div>;
+          } },
+          { key: 'permitNumber', label: 'Permit' },
+          { key: 'validUntil', label: 'Valid Until', render: (q) => String(q.validUntil).slice(0, 10) },
+        ]} />
+        <div style={{ fontSize: 9.5, color: T.text3, marginTop: 10, lineHeight: 1.5 }}>
+          Mirrored from SIGIF2 (Système Informatisé de Gestion des Informations Forestières, MINFOF). Volumes shown as
+          "available" are within the annual allowable cut and legally sellable; FOB pricing for these volumes is computed
+          in the FOB Calculator from live market prices.
+        </div>
+      </Card>
+    </>
+  );
+}
+
+/* ═══════════════ ACCOUNT & SUBSCRIPTIONS ═══════════════════════════ */
+export function Account() {
+  const [plans, setPlans] = useState(PLANS_4);
+  const [selected, setSelected] = useState('TRADER_PRO');
+  const [role, setRole] = useState('TRADER');
+  useEffect(() => {
+    let on = true;
+    apiGet('/subscriptions/plans').then((d) => { if (on && d.length) setPlans(d); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  const ROLES = [['PRODUCER', '🌳', 'Concession holder / sawmill'], ['TRADER', '📦', 'Exporter / trading desk'], ['BUYER', '🛒', 'International buyer'], ['ANALYST', '📊', 'Market analyst'], ['REGULATOR', '⚖️', 'Ministry / authority']];
+  return (
+    <>
+      <Card title="👤 Account Type">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10 }}>
+          {ROLES.map(([code, icon, desc]) => (
+            <div key={code} onClick={() => setRole(code)} style={{ cursor: 'pointer', textAlign: 'center', padding: '14px 8px', borderRadius: 8, background: role === code ? 'rgba(232,135,58,0.1)' : T.surface, border: `1px solid ${role === code ? T.accent : T.border}` }}>
+              <div style={{ fontSize: 22 }}>{icon}</div>
+              <div className="syne" style={{ fontSize: 11, fontWeight: 700, margin: '5px 0 3px', color: role === code ? T.accent : T.text }}>{code}</div>
+              <div style={{ fontSize: 9, color: T.text3 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {plans.map((p) => (
+          <div key={p.code} onClick={() => setSelected(p.code)} style={{ cursor: 'pointer', background: T.panel, borderRadius: 10, padding: 16, border: `1px solid ${selected === p.code ? T.green2 : T.border}`, position: 'relative' }}>
+            {p.code === 'TRADER_PRO' && <div style={{ position: 'absolute', top: -8, right: 10 }}><Badge tone="green">POPULAR</Badge></div>}
+            <div className="syne" style={{ fontSize: 13, fontWeight: 800 }}>{p.name}</div>
+            <div style={{ fontSize: 9.5, color: T.text3, minHeight: 24, marginTop: 2 }}>{p.audience}</div>
+            <div className="syne" style={{ fontSize: 24, fontWeight: 800, margin: '8px 0', color: selected === p.code ? T.green2 : T.text }}>
+              ${p.priceUsd.toLocaleString()}<span style={{ fontSize: 11, opacity: .5 }}>/mo</span>
+            </div>
+            <div style={{ fontSize: 9.5, color: T.text2, marginBottom: 8 }}>{p.maxSeats === 999 ? 'Unlimited seats' : `${p.maxSeats} seat${p.maxSeats > 1 ? 's' : ''}`} · {p.feedDelayMins === 0 ? 'real-time feeds' : `${p.feedDelayMins}-min delay`}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {(p.features || []).map((f) => <div key={f} style={{ fontSize: 10, color: T.text2 }}>✓ {f}</div>)}
+            </div>
+            <button style={{ width: '100%', marginTop: 12, padding: '8px', borderRadius: 6, fontWeight: 700, fontSize: 11, cursor: 'pointer', border: 'none', background: selected === p.code ? T.green2 : T.border2, color: selected === p.code ? '#06210f' : T.text2 }}>
+              {selected === p.code ? 'Start 14-day trial' : 'Select plan'}
+            </button>
+          </div>
+        ))}
+      </div>
+      <Card title="🔐 Registration">
+        <div style={{ fontSize: 11, color: T.text2, lineHeight: 1.6 }}>
+          Accounts register via <span style={{ fontFamily: 'DM Mono, monospace', color: T.accent }}>POST /api/v1/auth/register</span> with
+          role <Badge tone="purple">{role}</Badge> and activate the <Badge tone="green">{selected}</Badge> plan through{' '}
+          <span style={{ fontFamily: 'DM Mono, monospace', color: T.accent }}>POST /api/v1/subscriptions/subscribe</span>.
+          Billing capture (card / mobile money) plugs into the subscribe step; trials activate instantly.
+        </div>
+      </Card>
+    </>
   );
 }

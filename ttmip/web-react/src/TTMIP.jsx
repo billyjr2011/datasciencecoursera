@@ -4,6 +4,7 @@ import { makeApi } from './data.js';
 import {
   Dashboard, Prices, Markets, Indices, ESG, Certs, Alerts, DDRA, Regulatory,
   Trading, Technical, Publications, Fundamentals, FAQ, AIIntelligence,
+  Feeds, FobCalculator, Sigif, Account,
 } from './tabs.jsx';
 
 const TABS = [
@@ -15,6 +16,10 @@ const TABS = [
   { id: 'technical', icon: '📉', label: 'Technical' }, { id: 'publications', icon: '📰', label: 'Publications' },
   { id: 'fundamentals', icon: '🔭', label: 'Fundamentals' }, { id: 'faq', icon: '❓', label: 'FAQ' },
   { id: 'bi', icon: '🤖', label: 'AI Intelligence' },
+  { id: 'feeds', icon: '🔌', label: 'Platform Feeds' },
+  { id: 'fob', icon: '🧮', label: 'FOB Calculator' },
+  { id: 'sigif', icon: '🔗', label: 'SIGIF2 Quotas' },
+  { id: 'account', icon: '👤', label: 'Account & Plans' },
 ];
 
 /** Loads dynamic data from the TTMIP API, falling back to demo generators. */
@@ -51,6 +56,10 @@ export default function TTMIP({ apiBase }) {
       case 'fundamentals': return <Fundamentals />;
       case 'faq': return <FAQ />;
       case 'bi': return <AIIntelligence data={data} />;
+      case 'feeds': return <Feeds />;
+      case 'fob': return <FobCalculator />;
+      case 'sigif': return <Sigif />;
+      case 'account': return <Account />;
       default: return null;
     }
   };
@@ -97,7 +106,7 @@ export default function TTMIP({ apiBase }) {
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
               <div className="syne" style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>{active?.icon} {active?.label}</div>
-              <div style={{ fontSize: 11, color: T.text3, marginTop: 3 }}>30 Species · 15 Markets · 6 Data Platforms · 5 Regulatory Frameworks</div>
+              <div style={{ fontSize: 11, color: T.text3, marginTop: 3 }}>30 Species · 15 Markets · 22 Live Platforms · SIGIF2 Interlink · 5 Regulatory Frameworks</div>
             </div>
           </div>
           {renderTab()}

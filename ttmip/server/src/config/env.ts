@@ -19,6 +19,14 @@ const schema = z.object({
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+
+  // Live-feed ingestion (22 market platforms)
+  INGESTION_ENABLED: z.coerce.boolean().default(false),
+  INGESTION_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
+
+  // SIGIF2 interlink (Cameroon forest-information system)
+  SIGIF2_BASE_URL: z.string().optional(),
+  SIGIF2_API_KEY: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

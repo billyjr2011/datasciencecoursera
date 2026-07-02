@@ -1,10 +1,14 @@
 # TTMIP — Tropical Timber Market Intelligence Platform
 
 A production-ready, horizontally scalable platform that gives the **Cameroon
-Ministry of Forests & Wildlife** and licensed timber exporters a single source of
-truth for tropical-timber **market prices, international demand, price indices,
-ESG performance, certification status, deforestation alerts, EUDR due-diligence,
-and the international regulatory landscape**.
+Ministry of Forests & Wildlife**, timber producers, traders, and international
+buyers a single source of truth for tropical timber: **prices ingested live from
+22 international market platforms**, analysis & 12-month **projections**,
+**dynamic FOB Douala pricing** derived from international prices, a **SIGIF2
+interlink** exposing production quotas available for sale, **subscription
+accounts** by role (producer / trader / buyer / analyst / regulator), plus the
+original modules — demand, price indices, ESG, certification, deforestation
+alerts, EUDR due-diligence, and the regulatory landscape — unchanged.
 
 This repository turns the `TTMIP v8` single-file prototype into a real
 full-stack system: a typed REST API backed by PostgreSQL, seeded with the

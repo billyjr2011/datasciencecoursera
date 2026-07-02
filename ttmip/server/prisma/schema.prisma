@@ -52,6 +52,28 @@ enum DdraStatus {
   CRITICAL
 }
 
+enum UserRole {
+  PRODUCER
+  TRADER
+  BUYER
+  ANALYST
+  REGULATOR
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+}
+
+enum FeedStatus {
+  LIVE
+  DELAYED
+  DOWN
+}
+
 // ───────────────────────── Auth ──────────────────────────
 
 model User {
@@ -59,11 +81,47 @@ model User {
   email        String   @unique
   name         String
   organization String?
+  role         UserRole @default(TRADER)
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  subscriptions Subscription[]
+
   @@map("users")
+}
+
+// ─────────────────── Subscriptions ───────────────────────
+
+model SubscriptionPlan {
+  id            String   @id @default(uuid())
+  code          String   @unique // FREE, PRODUCER, TRADER_PRO, ENTERPRISE
+  name          String
+  audience      String // who the plan is designed for
+  priceUsd      Float    @map("price_usd") // per month
+  features      String[] // feature bullets
+  maxSeats      Int      @map("max_seats")
+  apiRateLimit  Int      @map("api_rate_limit") // requests/min
+  feedDelayMins Int      @map("feed_delay_mins") // 0 = real-time
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String             @map("user_id")
+  planId    String             @map("plan_id")
+  status    SubscriptionStatus @default(TRIALING)
+  startedAt DateTime           @default(now()) @map("started_at")
+  renewsAt  DateTime           @map("renews_at")
+
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([userId, status])
+  @@map("subscriptions")
 }
 
 // ─────────────────────── Reference ───────────────────────
@@ -96,11 +154,41 @@ model Market {
 }
 
 model Platform {
-  id     String        @id @default(uuid())
-  name   String        @unique
-  prices PriceRecord[]
+  id           String     @id @default(uuid())
+  name         String     @unique
+  region       String     @default("Global") // primary coverage region
+  feedType     String     @default("REST") @map("feed_type") // REST, SFTP, SCRAPE, EDI
+  url          String     @default("")
+  status       FeedStatus @default(LIVE)
+  pollSeconds  Int        @default(300) @map("poll_seconds")
+  lastSyncAt   DateTime?  @map("last_sync_at")
+  recordCount  Int        @default(0) @map("record_count")
+  prices       PriceRecord[]
 
   @@map("platforms")
+}
+
+// ─────────────── SIGIF2 production quotas ─────────────────
+// Mirror of quota data pulled from Cameroon's SIGIF2 (Système Informatisé de
+// Gestion des Informations Forestières, 2nd gen). When SIGIF2_BASE_URL is
+// configured the sync job refreshes this table; otherwise seeded reference
+// data is served.
+
+model SigifQuota {
+  id           String   @id @default(uuid())
+  concession   String // e.g. UFA 10-052
+  titleHolder  String   @map("title_holder") // company holding the title
+  speciesName  String   @map("species_name")
+  yearlyQuota  Float    @map("yearly_quota") // m³ annual allowable cut
+  usedVolume   Float    @map("used_volume") // m³ already harvested/sold
+  availableM3  Float    @map("available_m3") // m³ remaining for sale
+  permitNumber String   @map("permit_number")
+  validUntil   DateTime @map("valid_until")
+  syncedAt     DateTime @default(now()) @map("synced_at")
+
+  @@unique([concession, speciesName])
+  @@index([speciesName])
+  @@map("sigif_quotas")
 }
 
 model Company {
