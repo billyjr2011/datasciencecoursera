@@ -6,6 +6,18 @@ export interface EvidenceSource {
   note: string;
 }
 
+// Regional evidence base sampled from / focused on Black African populations.
+// NdMED is deployed in Cameroon; much international clinical evidence is derived
+// from predominantly European / North American cohorts, so these sources are
+// always surfaced to ground findings in African epidemiology and physiology.
+export const REGIONAL_AFRICA: EvidenceSource[] = [
+  { source: "WHO Regional Office for Africa (AFRO)", url: "https://www.afro.who.int/health-topics", note: "Africa-specific clinical & public-health guidance" },
+  { source: "Africa CDC", url: "https://africacdc.org/disease-outbreak/", note: "Continental disease surveillance & guidelines" },
+  { source: "H3Africa", url: "https://h3africa.org/", note: "Human Heredity & Health in Africa — African genomic & population data" },
+  { source: "Pan African Medical Journal", url: "https://www.panafrican-med-journal.com/", note: "Peer-reviewed research from African cohorts" },
+  { source: "Cameroon MINSANTE", url: "https://www.minsante.cm/", note: "Cameroon Ministry of Public Health protocols" },
+];
+
 export const EVIDENCE_KB: Record<string, EvidenceSource[]> = {
   general: [
     { source: "WHO", url: "https://www.who.int/health-topics", note: "WHO clinical guidelines" },
@@ -64,7 +76,8 @@ export const EVIDENCE_KB: Record<string, EvidenceSource[]> = {
 
 export function getRelevantSources(answers: Record<string, unknown>): EvidenceSource[] {
   const chief = Array.isArray(answers.chief) ? (answers.chief as string[]) : [String(answers.chief ?? "")];
-  let all: EvidenceSource[] = [...EVIDENCE_KB.general];
+  // Lead with regional African evidence, then general and complaint-specific sources.
+  let all: EvidenceSource[] = [...REGIONAL_AFRICA, ...EVIDENCE_KB.general];
   for (const raw of chief) {
     const c = (raw || "").toLowerCase();
     if (c.includes("chest") || c.includes("heart") || c.includes("palpitat")) all = all.concat(EVIDENCE_KB.chest);

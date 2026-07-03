@@ -207,6 +207,15 @@ const SPECIALISTS = [
 ];
 
 const EVIDENCE = {
+  // Regional evidence sampled from / focused on Black African populations. NdMED runs in
+  // Cameroon; much international evidence is derived from European/North-American cohorts,
+  // so these are always surfaced to ground findings in African epidemiology & physiology.
+  regional: [
+    { title: "Clinical & public-health guidance for Africa", source: "WHO AFRO", url: "https://www.afro.who.int/health-topics", relevance: "Africa-specific disease guidance" },
+    { title: "Continental disease surveillance & protocols", source: "Africa CDC", url: "https://africacdc.org/disease-outbreak/", relevance: "Region-level outbreak & care standards" },
+    { title: "African genomic & population health data", source: "H3Africa", url: "https://h3africa.org/", relevance: "African-ancestry genetic & physiological baselines" },
+    { title: "Research from African cohorts", source: "Pan African Medical Journal", url: "https://www.panafrican-med-journal.com/", relevance: "Peer-reviewed African clinical evidence" },
+  ],
   chest: [
     { title: "Chest pain: causes & red flags", source: "Mayo Clinic", url: "https://www.mayoclinic.org/symptoms/chest-pain/basics/causes/sym-20050838", relevance: "Differential for acute chest pain" },
     { title: "Warning signs of a heart attack", source: "American Heart Association", url: "https://www.heart.org/en/health-topics/heart-attack/warning-signs-of-a-heart-attack", relevance: "Emergency recognition criteria" },
@@ -337,6 +346,38 @@ const DEFAULT_MAP = {
   ],
 };
 
+// Population-context caveats — well-established, evidence-based points that differ for
+// Black African populations because standard reference data is often derived from
+// European/North-American cohorts. Surfaced to every user as safety-relevant context.
+function populationContext(answers, mapEvidence) {
+  const chief = (answers.chief || []).join(" ").toLowerCase();
+  const assoc = (answers.associated || []).join(" ").toLowerCase();
+  const hist = answers.history || [];
+  const family = answers.family_hx || [];
+  const meds = answers.medications || [];
+  const vitals = answers.vitals || {};
+  const notes = [];
+
+  notes.push("Deployed in Cameroon: endemic conditions (malaria, typhoid, TB, sickle-cell, HIV) are weighted alongside non-communicable disease.");
+
+  if (vitals.spo2)
+    notes.push("Pulse oximetry can overestimate oxygen saturation in darker skin — treat a borderline SpO₂ as potentially worse than the reading, and rely on clinical signs of respiratory distress.");
+
+  if (hist.includes("Hypertension"))
+    notes.push("For hypertension in Black African patients, calcium-channel blockers or thiazide diuretics are generally first-line over ACE inhibitors/ARBs, and ACE-inhibitor cough/angioedema is more common — discuss regimen choice with your clinician.");
+
+  if (mapEvidence === "fever" || meds.includes("Antimalarials") || /malaria/.test(chief + assoc))
+    notes.push("G6PD deficiency is common in this population; oxidative drugs (primaquine, dapsone, some sulfonamides) can trigger haemolysis — G6PD status should be checked before prescribing them.");
+
+  if (hist.includes("Anaemia / sickle cell") || family.includes("Sickle cell disease") || /sickle/.test(chief))
+    notes.push("Sickle-cell disease/trait is prevalent regionally — severe or atypical pain, fever or breathlessness should be assessed with sickle-cell crisis in mind.");
+
+  if (/skin|rash|itch/.test(chief))
+    notes.push("On brown/black skin, inflammation (erythema) can appear violaceous, grey or hyperpigmented rather than red — assess for warmth, induration and pigment change, not colour alone.");
+
+  return notes;
+}
+
 function mockTriage(answers, plan) {
   const chief = answers.chief || [];
   const assoc = answers.associated || [];
@@ -390,16 +431,17 @@ function mockTriage(answers, plan) {
     first_aid: color === "RED"
       ? ["Keep the patient still, seated or lying with airway clear.", "Loosen tight clothing; nothing by mouth.", "If unresponsive and not breathing normally, start CPR and call for help."]
       : [],
-    evidence_sources: pro ? [...(EVIDENCE[map.evidence] || []), ...EVIDENCE.general].slice(0, 4) : [],
+    evidence_sources: pro ? [...(EVIDENCE[map.evidence] || []), ...EVIDENCE.regional, ...EVIDENCE.general].slice(0, 6) : [],
+    population_context: populationContext(answers, map.evidence),
     lab_tests_recommended: clin
       ? [
-          { test: "Full blood count (FBC)", rationale: "Baseline for infection, anaemia and platelet status." },
-          map.evidence === "fever" ? { test: "Malaria RDT / thick film", rationale: "First-line for febrile illness in an endemic zone." } : { test: "C-reactive protein (CRP)", rationale: "Non-specific inflammation marker to guide urgency." },
-          map.evidence === "chest" ? { test: "ECG + troponin", rationale: "Exclude acute coronary syndrome." } : { test: "Urinalysis", rationale: "Cheap screen for infection and renal involvement." },
+          { test: "Full blood count (FBC)", rationale: "Baseline for infection, anaemia and platelets. Interpret neutrophils against Duffy-null (benign ethnic) neutropenia — a mildly low count can be a normal African-ancestry baseline." },
+          map.evidence === "fever" ? { test: "Malaria RDT / thick film", rationale: "First-line for febrile illness in an endemic zone." } : { test: "Renal function (creatinine + race-free 2021 CKD-EPI eGFR)", rationale: "Assess kidney function using the race-free equation; do not apply the legacy race coefficient." },
+          map.evidence === "chest" ? { test: "ECG + troponin", rationale: "Exclude acute coronary syndrome." } : { test: "G6PD status (if oxidative drugs likely)", rationale: "G6PD deficiency is common regionally; confirm before primaquine, dapsone or sulfonamides." },
         ]
       : [],
     drug_interactions: clin ? interactions : [],
-    clinical_notes: `Rule-based prototype assessment (mock engine): ${chief.length} chief complaint(s), severity ${severity}/10, ${redFlags.length} hard red flag(s), ${softFlags.length} soft flag(s). Production runs this step on Claude server-side with the full intake JSON.`,
+    clinical_notes: `Rule-based prototype assessment (mock engine): ${chief.length} chief complaint(s), severity ${severity}/10, ${redFlags.length} hard red flag(s), ${softFlags.length} soft flag(s). Findings are contextualised for a Black African population in Cameroon (see Population context). Production runs this step on Claude server-side with the full intake JSON.`,
     summary: color === "RED"
       ? "Your answers include emergency warning signs. Seek emergency care immediately — call 15, 112 or 911 now."
       : `Your symptoms suggest a ${TRIAGE[color].label.toLowerCase()} situation. We recommend a ${map.specialty} consultation ${urgency ? `within ${urgency} hours` : "immediately"}. Matched specialists are listed under the Specialists tab.`,
@@ -802,6 +844,7 @@ table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #e8edf2;
 <div style="font-size:9px;color:#4a6080">${esc(date)}${patientZone ? " · Zone: " + esc(patientZone) : ""} · Confidential — Patient Copy · LIWIMALA INITIATIVE</div>
 <div class="banner"><b style="color:${tr.bg};font-size:16px">${tr.label}</b> — ${esc(result.triage_label || "")}<br/><span style="font-size:10px">Referral: <b>${esc(result.referral?.specialty || "")}</b> (${esc(result.referral?.facility_type || "")}${result.referral?.urgency_hours != null ? ", within " + result.referral.urgency_hours + "h" : ""})</span></div>
 <p>${esc(result.summary || "")}</p>
+${result.population_context?.length ? `<h3 style="border-color:#00C9B1;color:#00796B">Population Context — Cameroon / African cohort</h3><ul>${result.population_context.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
 ${result.red_flags?.length ? `<h3 style="border-color:#E8394A;color:#E8394A">Red Flags</h3><ul>${result.red_flags.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
 <h3>Immediate Actions</h3><ol>${(result.immediate_actions || []).map((a) => `<li>${esc(a)}</li>`).join("")}</ol>
 <h3>Do Not</h3><ul>${(result.do_not || []).map((a) => `<li>${esc(a)}</li>`).join("")}</ul>
@@ -883,6 +926,20 @@ function Result({ result, plan, patientZone, chief, onRestart }) {
               <Card><Label color={T.red}>Do NOT</Label>{(result.do_not || []).map((x) => <div key={x} style={{ fontSize: 11, color: T.dimL, margin: "3px 0" }}>• {x}</div>)}</Card>
               <Card><Label color={T.green}>First Aid</Label>{result.first_aid?.length ? result.first_aid.map((x) => <div key={x} style={{ fontSize: 11, color: T.dimL, margin: "3px 0" }}>• {x}</div>) : <i style={{ fontSize: 10, color: T.dim }}>No immediate first aid required.</i>}</Card>
             </div>
+            {!!result.population_context?.length && (
+              <Card style={{ borderColor: "rgba(0,201,177,0.28)", background: "rgba(0,201,177,0.05)" }}>
+                <Label color={T.teal}>🌍 Population Context · Cameroon / African cohort</Label>
+                {result.population_context.map((n) => (
+                  <div key={n} style={{ display: "flex", gap: 7, margin: "5px 0" }}>
+                    <span style={{ color: T.teal, flexShrink: 0 }}>•</span>
+                    <span style={{ fontSize: 11, color: T.dimL, lineHeight: 1.55 }}>{n}</span>
+                  </div>
+                ))}
+                <p style={{ fontSize: 9, color: T.dim, fontStyle: "italic", marginTop: 6 }}>
+                  Standard international evidence is often derived from European/North-American cohorts; these points adjust for Black African physiology and epidemiology.
+                </p>
+              </Card>
+            )}
             {result.clinical_notes && (
               <Card style={{ borderColor: "rgba(139,92,246,0.22)", background: "rgba(139,92,246,0.05)" }}>
                 <Label color={T.purple}>Clinical Commentary</Label>
