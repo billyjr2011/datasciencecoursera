@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+.DS_Store
+coverage/
+server/prisma/*.db
+.vite/
+.cache/
+
+# prototype preview build outputs (regenerate via prototype/build-preview.sh)
+prototype/preview.html
+prototype/preview.bundle.js
+prototype/_preview_entry.jsx
+prototype/_shoot.mjs
+prototype/shot-*.png
+prototype/source-view.html
