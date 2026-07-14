@@ -75,3 +75,38 @@ test('statut invalide rejeté', async () => {
   });
   assert.equal(res.status, 400);
 });
+
+test('le réseau XOR apprend (rétropropagation)', async () => {
+  const { MLP } = await import('../src/ml/nn.js');
+  const data = [{ x: [0, 0], y: [0] }, { x: [0, 1], y: [1] },
+    { x: [1, 0], y: [1] }, { x: [1, 1], y: [0] }];
+  const net = new MLP([2, 8, 1], { seed: 1 });
+  net.fit(data, { epochs: 1500, lr: 0.1, batchSize: 4, l2: 0 });
+  for (const d of data)
+    assert.equal(net.predict(d.x)[0] >= 0.5 ? 1 : 0, d.y[0]);
+});
+
+test('modèle de conformité entraîné et exposé', async () => {
+  const m = await get('/api/ml/model');
+  assert.equal(m.trained, true);
+  assert.ok(m.metrics.test.acc > 0.9, 'exactitude test > 0.9');
+  assert.deepEqual(m.arch.slice(-1), [1]);
+});
+
+test('les 4 régions de référence sont exposées', async () => {
+  const r = await get('/api/ml/regions');
+  assert.deepEqual(r.map((x) => x.region), ['Sud', 'Centre', 'Est', 'Littoral']);
+});
+
+test('score de conformité d’une UC', async () => {
+  const s = await get('/api/ucs/A1-417/score');
+  assert.equal(s.region, 'Est');
+  assert.ok(s.conformity >= 0 && s.conformity <= 100);
+  assert.ok(['conforme', 'a_surveiller', 'atypique'].includes(s.level));
+});
+
+test('UC détail inclut le score IA et la région', async () => {
+  const u = await get('/api/ucs/A1-417');
+  assert.equal(u.region, 'Est');
+  assert.ok(u.ml && typeof u.ml.conformity === 'number');
+});

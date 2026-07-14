@@ -7,6 +7,7 @@ import { getDb, closeDb, DB_PATH } from './db.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DATA = join(here, '..', 'data');
+const ROOT = join(here, '..');
 const load = (f) => JSON.parse(readFileSync(join(DATA, f), 'utf8'));
 
 function seed() {
@@ -16,14 +17,22 @@ function seed() {
   const blocs = load('blocs.json');
   const alerts = load('alerts.json');
 
+  // Reconstruit le schéma à neuf (migration-safe : applique toute évolution).
+  db.exec('PRAGMA foreign_keys = OFF;');
+  db.exec('DROP VIEW IF EXISTS uc_status;');
+  for (const t of ['verifications', 'alerts', 'trees', 'ucs', 'blocs'])
+    db.exec(`DROP TABLE IF EXISTS ${t};`);
+  db.exec(readFileSync(join(ROOT, 'schema.sql'), 'utf8'));
+
   db.exec('BEGIN');
   try {
-    for (const t of ['verifications', 'alerts', 'trees', 'ucs', 'blocs'])
-      db.exec(`DELETE FROM ${t};`);
 
+    // La concession seedée relève de la région Est (bassin du Congo, ~15°E).
+    const region = JSON.parse(
+      readFileSync(join(DATA, 'meta.json'), 'utf8')).region || 'Est';
     const insBloc = db.prepare(
-      `INSERT INTO blocs (bloc,label,color) VALUES (?,?,?)`);
-    for (const b of blocs) insBloc.run(b.b, `Assiette ${b.b}`, b.col ?? null);
+      `INSERT INTO blocs (bloc,label,color,region) VALUES (?,?,?,?)`);
+    for (const b of blocs) insBloc.run(b.b, `Assiette ${b.b}`, b.col ?? null, region);
 
     const insUc = db.prepare(`INSERT INTO ucs
       (uc_id,bloc,x_utm,y_utm,trees_total,grade_oa,grade_oc,

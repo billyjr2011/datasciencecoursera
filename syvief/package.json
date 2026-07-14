@@ -5,8 +5,10 @@
   "private": true,
   "workspaces": ["server", "web"],
   "scripts": {
-    "setup": "npm install && npm run seed",
+    "setup": "npm install && npm run seed && npm run train",
     "seed": "npm --workspace server run seed",
+    "train": "npm --workspace server run train",
+    "reference": "npm --workspace server run reference",
     "build": "npm --workspace web run build",
     "dev:api": "npm --workspace server run dev",
     "dev:web": "npm --workspace web run dev",

@@ -15,7 +15,7 @@ export default function Overview() {
       <div className="page-head">
         <div>
           <h2>Aperçu de la campagne de contrôle</h2>
-          <p>{meta.title} · {meta.crs} · concession {meta.geoGuard?.domname}</p>
+          <p>{meta.title} · Région {meta.region} · {meta.crs} · UC {meta.ucDimensions?.width_m}×{meta.ucDimensions?.height_m} m ({meta.ucDimensions?.area_ha} ha)</p>
         </div>
         <Link className="btn ghost" to="/map">Ouvrir la carte GIS</Link>
       </div>

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
+import { scoreUc } from '../ml/model.js';
 
 const router = Router();
 const STATUSES = ['a_verifier', 'en_cours', 'valide', 'rejete'];
@@ -40,14 +41,15 @@ router.get('/ucs', (req, res) => {
 // Détail d'une UC : mesures, tiges irrégulières, alertes, statut de contrôle.
 router.get('/ucs/:id', (req, res) => {
   const db = getDb();
-  const uc = db.prepare('SELECT * FROM ucs WHERE uc_id=?').get(req.params.id);
+  const uc = db.prepare(`SELECT u.*, b.region FROM ucs u
+    JOIN blocs b ON b.bloc = u.bloc WHERE u.uc_id=?`).get(req.params.id);
   if (!uc) return res.status(404).json({ error: 'UC introuvable' });
   const trees = db.prepare(
     'SELECT * FROM trees WHERE uc_id=? ORDER BY dbh_cm DESC').all(req.params.id);
   const alerts = db.prepare('SELECT * FROM alerts WHERE uc_id=?').all(req.params.id);
   const status = db.prepare('SELECT * FROM uc_status WHERE uc_id=?').get(req.params.id)
     || { status: 'a_verifier' };
-  res.json({ ...uc, review: status, trees, alerts });
+  res.json({ ...uc, review: status, trees, alerts, ml: scoreUc(uc, uc.region) });
 });
 
 // Tiges irrégulières d'une UC.

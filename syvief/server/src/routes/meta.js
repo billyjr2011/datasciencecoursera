@@ -15,6 +15,8 @@ router.get('/meta', (_req, res) => {
     project: 'SYVIEF',
     title: "Vérification d'inventaire d'exploitation forestière",
     crs: 'UTM zone 33N',
+    region: meta.region,
+    ucDimensions: meta.uc_dimensions,
     extent: meta.extent,
     geoGuard: meta.geo_guard,
   });

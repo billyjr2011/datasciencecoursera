@@ -6,6 +6,7 @@ import Species from './pages/Species.jsx';
 import Dbh from './pages/Dbh.jsx';
 import Alerts from './pages/Alerts.jsx';
 import MapPage from './pages/MapPage.jsx';
+import Model from './pages/Model.jsx';
 
 const NAV = [
   ['/', 'Aperçu', '◧'],
@@ -14,6 +15,7 @@ const NAV = [
   ['/species', 'Espèces', '❦'],
   ['/dbh', 'Diamètres (DBH)', '‖'],
   ['/alerts', 'Alertes', '⚠'],
+  ['/model', 'Modèle IA', '❖'],
   ['/map', 'Carte GIS', '◉'],
 ];
 
@@ -46,6 +48,7 @@ export default function App() {
           <Route path="/species" element={<Species />} />
           <Route path="/dbh" element={<Dbh />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/model" element={<Model />} />
           <Route path="/map" element={<MapPage />} />
         </Routes>
       </main>

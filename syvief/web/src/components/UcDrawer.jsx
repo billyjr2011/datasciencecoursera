@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { api, REVIEW } from '../lib/api.js';
-import { useAsync, Spinner, ErrorBox, SeverityBadge, ReviewBadge } from './ui.jsx';
+import { api, REVIEW, CONFORMITY } from '../lib/api.js';
+import { useAsync, Spinner, ErrorBox, SeverityBadge, ReviewBadge, Badge, Bar } from './ui.jsx';
 
 const GRADE_COLOR = { OA: 'var(--red)', OB: 'var(--amb)', OC: 'var(--blu)' };
 
@@ -43,8 +43,24 @@ export default function UcDrawer({ id, onClose, onChange }) {
                 <span className="dot" />Bordure</span> : null}
             </div>
             <p className="muted" style={{ marginTop: 4 }}>
-              Bloc {uc.bloc} · UTM {uc.x_utm}, {uc.y_utm}
+              Bloc {uc.bloc} · Région {uc.region} · UTM {uc.x_utm}, {uc.y_utm} · 25 ha
             </p>
+
+            {uc.ml && (
+              <div className="card" style={{ marginBottom: 14 }}>
+                <h3>Conformité IA — profil certifié {uc.ml.region}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                  <div style={{ fontSize: 26, fontWeight: 700,
+                    color: CONFORMITY[uc.ml.level]?.color }}>{uc.ml.conformity}%</div>
+                  <div>
+                    <Badge color={CONFORMITY[uc.ml.level]?.color}>
+                      {CONFORMITY[uc.ml.level]?.label}</Badge>
+                    <div className="muted" style={{ marginTop: 3, fontSize: 12 }}>{uc.ml.label}</div>
+                  </div>
+                </div>
+                <Bar value={uc.ml.conformity} max={100} color={CONFORMITY[uc.ml.level]?.color} />
+              </div>
+            )}
 
             <div className="def">
               <div><span>Tiges inventoriées</span><b>{uc.trees_total}</b></div>

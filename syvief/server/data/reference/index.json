@@ -1,0 +1,26 @@
+{
+ "generated_at": "2026-07-14T07:57:08.436Z",
+ "regions": {
+  "Sud": {
+   "conforme": 220,
+   "anomalie": 110,
+   "total": 330
+  },
+  "Centre": {
+   "conforme": 220,
+   "anomalie": 110,
+   "total": 330
+  },
+  "Est": {
+   "conforme": 220,
+   "anomalie": 110,
+   "total": 330
+  },
+  "Littoral": {
+   "conforme": 220,
+   "anomalie": 110,
+   "total": 330
+  }
+ },
+ "total": 1320
+}

@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS blocs (
   bloc     TEXT PRIMARY KEY,           -- ex. "A1"
   label    TEXT,
-  color    TEXT
+  color    TEXT,
+  region   TEXT NOT NULL DEFAULT 'Est' -- région forestière : Sud, Centre, Est, Littoral
 );
 
 -- Unité de comptage (UC) : cellule de 500 m × 500 m de l'inventaire d'exploitation.

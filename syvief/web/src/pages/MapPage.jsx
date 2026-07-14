@@ -4,7 +4,8 @@ import { api, SEVERITY } from '../lib/api.js';
 import { useAsync, Spinner, ErrorBox } from '../components/ui.jsx';
 import UcDrawer from '../components/UcDrawer.jsx';
 
-const CELL = 500; // taille d'une UC en mètres (UTM)
+const CELL_W = 1000; // largeur d'une UC (E–O) en mètres
+const CELL_H = 250;  // hauteur d'une UC (N–S) en mètres → 25 ha
 
 // Carte GIS : chaque UC est un carré de 500 m coloré selon sa sévérité.
 export default function MapPage() {
@@ -36,8 +37,8 @@ export default function MapPage() {
     ctx.fillRect(0, 0, W, H);
 
     for (const u of ucs.items) {
-      const x = px(u.x_utm), y = py(u.y_utm + CELL);
-      const w = CELL * s, h = CELL * s;
+      const x = px(u.x_utm), y = py(u.y_utm + CELL_H);
+      const w = CELL_W * s, h = CELL_H * s;
       const c = SEVERITY[u.severity]?.color || '#5fb84a';
       ctx.fillStyle = c + '30';
       ctx.fillRect(x, y, w, h);
@@ -46,7 +47,7 @@ export default function MapPage() {
       ctx.strokeRect(x, y, w, h);
     }
     cv._ucs = ucs.items.map((u) => ({
-      ...u, _x: px(u.x_utm), _y: py(u.y_utm + CELL), _w: CELL * s, _h: CELL * s,
+      ...u, _x: px(u.x_utm), _y: py(u.y_utm + CELL_H), _w: CELL_W * s, _h: CELL_H * s,
     }));
   }, [data, hover]);
 
@@ -67,7 +68,7 @@ export default function MapPage() {
       <div className="page-head">
         <div>
           <h2>Carte GIS de la concession</h2>
-          <p>{data[0].crs} — cliquez une UC pour ouvrir son dossier de contrôle.</p>
+          <p>{data[0].crs} — UC de 1000 m × 250 m (25 ha). Cliquez une UC pour ouvrir son dossier.</p>
         </div>
       </div>
       <div className="legend" style={{ marginBottom: 12 }}>

@@ -9,6 +9,7 @@ import ucs from './routes/ucs.js';
 import trees from './routes/trees.js';
 import species from './routes/stats.js';
 import alerts from './routes/alerts.js';
+import ml from './routes/ml.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4000;
@@ -41,6 +42,7 @@ app.use('/api', ucs);
 app.use('/api', trees);
 app.use('/api', species);
 app.use('/api', alerts);
+app.use('/api', ml);
 
 // Sert le frontend compilé si présent (déploiement mono-conteneur).
 const webDist = join(here, '..', '..', 'web', 'dist');

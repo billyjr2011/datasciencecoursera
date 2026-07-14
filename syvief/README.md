@@ -3,13 +3,36 @@
 **Système de Vérification d'Inventaire d'Exploitation Forestière** — plateforme de
 contrôle des inventaires d'exploitation forestière. SYVIEF permet à un service de
 vérification (administration, cabinet de certification, cellule qualité d'une société
-forestière) d'auditer, cellule par cellule, un inventaire d'exploitation : repérer les
-anomalies de comptage, tracer les décisions de contrôle et visualiser la concession sur
-une carte GIS.
+forestière) d'auditer, unité de comptage par unité de comptage, un inventaire
+d'exploitation : repérer les anomalies de comptage, tracer les décisions de contrôle,
+visualiser la concession sur une carte GIS, et **scorer chaque UC via un réseau de
+neurones** entraîné sur la signature des inventaires de sociétés certifiées.
 
-L'application est amorcée avec un jeu de données réel extrait d'un rapport de conformité :
-**4 blocs, 127 unités de comptage (UC), 1 064 tiges irrégulières, 11 alertes d'isolement**
-sur une concession en zone UTM 33N (~3,55–3,60 °N).
+Chaque **unité de comptage (UC) mesure 1000 m × 250 m, soit 25 ha** (layon d'inventaire
+normalisé). L'application est amorcée avec un jeu de données réel extrait d'un rapport de
+conformité : **4 blocs, 127 UC, 1 064 tiges irrégulières, 11 alertes d'isolement** sur une
+concession de la **région Est** (zone UTM 33N, ~3,55–3,60 °N).
+
+## Apprentissage automatique — conformité par région
+
+SYVIEF apprend la **signature des inventaires conformes** des sociétés certifiées sur les
+**quatre régions forestières du Cameroun** (Sud, Centre, Est, Littoral) au moyen d'un
+**réseau de neurones (perceptron multicouche)** implémenté sans dépendance et entraîné par
+rétropropagation du gradient. À partir des caractéristiques d'une UC (densité de tiges/ha,
+DBH moyen, proportion de qualité OA, taux d'anomalie, taux de rétention, région…), le
+modèle produit un **score de conformité** : *conforme*, *à surveiller* ou *atypique*.
+
+Le pipeline complet est reproductible :
+
+```bash
+npm run reference   # (re)génère data/reference/ pour les 4 régions
+npm run train       # entraîne le réseau → server/model.json (+ métriques)
+```
+
+> Les profils de référence fournis sont **synthétiques** (ordres de grandeur documentés des
+> massifs camerounais). Pour un usage réel, remplacez `server/data/reference/` par les
+> inventaires des sociétés certifiées et relancez `npm run train` — le reste du pipeline est
+> inchangé.
 
 ## Architecture
 
@@ -19,10 +42,11 @@ Monorepo à deux applications (voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.m
 syvief/
 ├── server/          API REST — Node.js + Express + SQLite (node:sqlite intégré)
 │   ├── schema.sql   Schéma relationnel (blocs, ucs, trees, alerts, verifications)
-│   ├── data/        Jeu de données seed (JSON extrait du rapport de conformité)
-│   └── src/         db, seed, serveur, routes
+│   ├── data/        Jeu de données seed + data/reference/ (jeu des 4 régions)
+│   ├── model.json   Réseau de neurones entraîné (poids + normalisation + métriques)
+│   └── src/         db, seed, serveur, routes, train.js, ml/ (réseau, features, régions)
 ├── web/             Interface — React 18 + Vite + React Router
-│   └── src/         pages, composants, client API
+│   └── src/         pages (dont Modèle IA), composants, client API
 └── docs/            Architecture et référence API
 ```
 
@@ -39,6 +63,8 @@ Prérequis : **Node.js ≥ 22.5**.
 cd syvief
 npm install            # installe server + web (workspaces)
 npm run seed           # crée et alimente server/syvief.db
+npm run train          # entraîne le réseau de conformité → server/model.json
+# (ou en une commande : npm run setup)
 ```
 
 ### Développement (deux processus)
@@ -75,14 +101,16 @@ npm test               # tests d'intégration de l'API (node:test)
 - **Espèces** — répartition des tiges relevées par essence.
 - **Diamètres (DBH)** — histogramme des classes de diamètre.
 - **Alertes** — tiges isolées à distance anormale de leurs congénères.
-- **Carte GIS** — rendu canvas des UC colorées par sévérité, cliquables.
+- **Modèle IA** — métriques du réseau, profils des 4 régions de référence, analyse de la
+  concession par le modèle (UC atypiques) et **simulateur de conformité** interactif.
+- **Carte GIS** — rendu canvas des UC (1000 m × 250 m) colorées par sévérité, cliquables.
 
 ## Modèle métier
 
 | Entité | Description |
 |--------|-------------|
 | `blocs` | Assiettes de coupe (A1, A2, B1, B2). |
-| `ucs` | Unités de comptage : cellules de 500 m × 500 m, avec taux d'anomalie, sévérité, DBH moyen. |
+| `ucs` | Unités de comptage : layons de 1000 m × 250 m (25 ha), avec taux d'anomalie, sévérité, DBH moyen. |
 | `trees` | Tiges signalées irrégulières (étiquette, espèce, DBH, qualité OA/OB/OC, position). |
 | `alerts` | Alertes automatiques d'isolement. |
 | `verifications` | Décisions de contrôle horodatées ; la vue `uc_status` expose le statut courant de chaque UC. |
@@ -102,4 +130,9 @@ GET  /api/ucs/:id/verifications
 POST /api/ucs/:id/verifications      { status, decision, note, inspector }
 GET  /api/trees?species=&grade=&uc=&bloc=
 GET  /api/alerts?bloc=&species=
+GET  /api/ml/model                   # architecture + métriques du réseau
+GET  /api/ml/regions                 # profils des 4 régions de référence
+GET  /api/ml/scan                    # distribution des verdicts sur la concession
+GET  /api/ucs/:id/score              # score de conformité d'une UC
+POST /api/ml/score                   # score d'une UC hypothétique (simulateur)
 ```

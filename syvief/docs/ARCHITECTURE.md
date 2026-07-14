@@ -40,7 +40,8 @@ blocs (bloc PK) ──1:N── ucs (uc_id PK)
                                         └── vue uc_status = dernière décision / UC
 ```
 
-- **`ucs`** : cellule d'inventaire de 500 m × 500 m. `severity` (0 conforme,
+- **`ucs`** : unité de comptage (layon d'inventaire) de **1000 m × 250 m = 25 ha**.
+  `severity` (0 conforme,
   1 vigilance, 2 critique) résume l'état, `suspect_rate_pct` est le taux d'anomalie
   (PBV), `edge_flag` marque les UC en bordure d'assiette.
 - **`trees`** : tige signalée irrégulière ; `grade` = qualité déclarée (OA/OB/OC),
@@ -55,6 +56,39 @@ blocs (bloc PK) ──1:N── ucs (uc_id PK)
 2. `GET /api/ucs/:id` → détail : mesures, tiges irrégulières, alertes, statut courant.
 3. `POST /api/ucs/:id/verifications` → il enregistre une décision (statut + note).
 4. La vue `uc_status` reflète immédiatement le nouveau statut dans les listes et la carte.
+
+## 3 bis. Module d'apprentissage (réseau de neurones)
+
+Objectif : apprendre la **signature des inventaires conformes** des sociétés certifiées
+sur les 4 régions forestières du Cameroun, puis attribuer à chaque UC un **score de
+conformité** complémentaire de la sévérité (règle sur le seul taux d'anomalie).
+
+```
+data/reference/*.json ─▶ features.js ─▶ MLP (nn.js) ─▶ model.json
+ (Sud/Centre/Est/Littoral)  vectorise      entraîne         │
+                                                            ▼
+        ucs (mesurées) ─▶ features.js ─▶ model.js.scoreUc ─▶ score de conformité
+```
+
+- **`src/ml/nn.js`** — perceptron multicouche générique (couches denses, ReLU + sigmoïde,
+  rétropropagation, SGD mini-batch, régularisation L2, PRNG déterministe). Zéro dépendance,
+  sérialisable JSON.
+- **`src/ml/features.js`** — extraction et **normalisation** des caractéristiques
+  (densité tiges/ha sur 25 ha, DBH, ratio OA, taux d'anomalie, taux de rétention, bordure)
+  + one-hot de la région. Les statistiques de normalisation sont figées dans `model.json`.
+- **`src/ml/regions.js`** — profils écologiques de référence des 4 régions.
+- **`src/ml/generate-reference.js`** — génère le jeu de référence (conformes + anomalies).
+- **`src/train.js`** — entraîne, évalue sur un jeu de test (holdout 20 %) et sauvegarde
+  `model.json` (architecture `[10,16,8,1]`, exactitude test ≈ 0,99).
+- **`src/ml/model.js`** — charge le modèle et score une UC.
+
+Architecture d'entrée (10 caractéristiques) : 6 continues normalisées + 4 dimensions
+one-hot de région. Sortie : probabilité de conformité → verdict *conforme* (≥ 80 %),
+*à surveiller* (≥ 50 %) ou *atypique*.
+
+> **Données** : les profils de référence livrés sont synthétiques (voir en-tête de
+> `regions.js`). Le pipeline relit `data/reference/` : y déposer les inventaires réels des
+> sociétés certifiées et relancer `npm run train` suffit à ré-entraîner le modèle.
 
 ## 4. Référence API
 
@@ -71,12 +105,17 @@ Toutes les réponses sont en JSON. Base : `/api`.
 | `GET /blocs` | Agrégats par bloc. | — |
 | `GET /blocs/:bloc` | Détail d'un bloc + ses UC. | — |
 | `GET /ucs` | Liste filtrable/paginée des UC. | `bloc, severity, status, edge, q, limit, offset` |
-| `GET /ucs/:id` | Détail d'une UC (tiges, alertes, statut). | — |
+| `GET /ucs/:id` | Détail d'une UC (tiges, alertes, statut, **score IA**). | — |
 | `GET /ucs/:id/trees` | Tiges d'une UC. | — |
 | `GET /ucs/:id/verifications` | Historique des décisions. | — |
 | `POST /ucs/:id/verifications` | Enregistre une décision. | corps : `status` (requis), `decision`, `note`, `inspector` |
+| `GET /ucs/:id/score` | Score de conformité IA d'une UC. | — |
 | `GET /trees` | Tiges irrégulières filtrables. | `species, grade, uc, bloc, limit, offset` |
 | `GET /alerts` | Alertes d'isolement. | `bloc, species` |
+| `GET /ml/model` | Architecture et métriques du réseau entraîné. | — |
+| `GET /ml/regions` | Profils des 4 régions + effectifs de référence. | — |
+| `GET /ml/scan` | Verdicts du modèle sur toute la concession. | — |
+| `POST /ml/score` | Score d'une UC hypothétique. | corps : `region, trees_total, mean_dbh_cm, grade_oa, suspect_rate_pct, tally, edge_flag` |
 
 ### Codes d'erreur
 
@@ -90,6 +129,7 @@ Toutes les réponses sont en JSON. Base : `/api`.
 |----------|--------|------|
 | `PORT` | `4000` | Port d'écoute de l'API. |
 | `SYVIEF_DB` | `server/syvief.db` | Chemin du fichier SQLite. |
+| `SYVIEF_MODEL` | `server/model.json` | Chemin du réseau de neurones entraîné. |
 | `VITE_API_BASE` | `/api` | Base de l'API côté frontend (build). |
 
 ## 6. Passage à l'échelle

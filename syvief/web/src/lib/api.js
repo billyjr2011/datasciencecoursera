@@ -37,6 +37,16 @@ export const api = {
     req(`/ucs/${id}/verifications`, { method: 'POST', body: JSON.stringify(payload) }),
   trees: (filters) => req(`/trees${qs(filters)}`),
   alerts: (filters) => req(`/alerts${qs(filters)}`),
+  mlModel: () => req('/ml/model'),
+  mlRegions: () => req('/ml/regions'),
+  mlScan: () => req('/ml/scan'),
+  mlScore: (payload) => req('/ml/score', { method: 'POST', body: JSON.stringify(payload) }),
+};
+
+export const CONFORMITY = {
+  conforme: { label: 'Conforme', color: '#5fb84a' },
+  a_surveiller: { label: 'À surveiller', color: '#f59e0b' },
+  atypique: { label: 'Atypique', color: '#ef4444' },
 };
 
 export const REVIEW = {
