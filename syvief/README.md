@@ -89,6 +89,21 @@ npm start              # sert l'API + l'interface sur http://localhost:4000
 npm test               # tests d'intégration de l'API (node:test)
 ```
 
+## Version JSX autonome (mono-fichier)
+
+[`SYVIEF.jsx`](SYVIEF.jsx) est une **version React à composant unique, sans backend** :
+données d'inventaire, poids du réseau de neurones et carte GIS embarqués. Elle reproduit
+toutes les vues de l'application (dont le workflow de vérification, persisté en
+`localStorage`) et permet même de **réentraîner le réseau dans le navigateur**. Déposez-la
+comme composant par défaut dans un projet React (Vite/CRA) ou prévisualisez-la telle quelle.
+
+Le fichier est **généré** à partir des mêmes sources de données et du modèle entraîné :
+
+```bash
+npm run train                # (re)génère server/model.json
+python3 tools/build-jsx.py   # assemble SYVIEF.jsx (données + modèle + code)
+```
+
 ## Fonctionnalités
 
 - **Aperçu** — indicateurs de campagne (taux d'anomalie, UC critiques, avancement

@@ -10,6 +10,7 @@
     "train": "npm --workspace server run train",
     "reference": "npm --workspace server run reference",
     "build": "npm --workspace web run build",
+    "build:jsx": "python3 tools/build-jsx.py",
     "dev:api": "npm --workspace server run dev",
     "dev:web": "npm --workspace web run dev",
     "start": "npm run build && npm --workspace server start",
