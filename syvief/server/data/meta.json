@@ -1,0 +1,23 @@
+{
+ "extent": {
+  "X0": 510135,
+  "Y0": 392312,
+  "X1": 518326,
+  "Y1": 398389,
+  "CW": 500,
+  "CH": 500
+ },
+ "geo_guard": {
+  "dom": "SE",
+  "domname": "Congolaise extreme Sud-Est",
+  "zone": "33N",
+  "lat": "3,552–3,602 N",
+  "lon": "15,094–15,162 E",
+  "env": 0,
+  "zmix": 0,
+  "xok": true,
+  "ok": true,
+  "nflag": 0,
+  "nsp": 33
+ }
+}

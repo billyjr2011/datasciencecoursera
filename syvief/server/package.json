@@ -1,0 +1,17 @@
+{
+  "name": "syvief-server",
+  "version": "1.0.0",
+  "description": "SYVIEF — API de vérification des inventaires d'exploitation forestière",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "seed": "node src/seed.js",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
