@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request, send_from_directory
 
 # ─────────────────────────────────────────────────────────────────────
 # LOGGING
@@ -47,40 +47,65 @@ HISTORY_DAYS = 180   # 6 months of learning
 # GLOBAL CATALOGUES  (shared by all components)
 # ─────────────────────────────────────────────────────────────────────
 BUG_CATALOGUE: Dict[str, Dict] = {
-    "NullPointerException":  {"fix": "inject_null_guard",   "severity": "HIGH",     "priority": 1},
-    "ArrayIndexOutOfBounds": {"fix": "bounds_check_patch",  "severity": "HIGH",     "priority": 1},
-    "DBConnectionTimeout":   {"fix": "pool_scale_up",       "severity": "CRITICAL", "priority": 0},
-    "MemoryLeak":            {"fix": "gc_force_sweep",      "severity": "HIGH",     "priority": 1},
-    "MissingConfig":         {"fix": "config_reload",       "severity": "MEDIUM",   "priority": 2},
-    "SecurityVulnerability": {"fix": "rotate_credentials",  "severity": "CRITICAL", "priority": 0},
-    "SlowQuery":             {"fix": "query_plan_optimize", "severity": "MEDIUM",   "priority": 2},
-    "ServiceUnavailable":    {"fix": "circuit_breaker",     "severity": "HIGH",     "priority": 1},
+    # SIGIF2 modules from the Jun 2025–Mar 2026 performance review.
+    # fcfa = avg financial impact per incident, in millions of FCFA.
+    "LVModificationFailure": {"fix": "lv_atomic_commit",        "severity": "CRITICAL", "priority": 0, "fcfa": 2.1},
+    "ServerUnavailable503":  {"fix": "autoscale_failover",      "severity": "CRITICAL", "priority": 0, "fcfa": 3.2},
+    "BSEQueueBlock":         {"fix": "bse_queue_rearchitect",   "severity": "CRITICAL", "priority": 0, "fcfa": 4.2},
+    "PermitDeactivation":    {"fix": "permit_autorenew",        "severity": "CRITICAL", "priority": 0, "fcfa": 6.5},
+    "DBConcurrencyLock":     {"fix": "pool_scale_savepoint",    "severity": "CRITICAL", "priority": 0, "fcfa": 2.8},
+    "DNSRoutingFailure":     {"fix": "dns_failover",            "severity": "CRITICAL", "priority": 0, "fcfa": 3.0},
+    "SessionPageExpiry":     {"fix": "session_keepalive",       "severity": "HIGH",     "priority": 1, "fcfa": 0.9},
+    "ProductionHalt":        {"fix": "batch_checkpoint_resume", "severity": "HIGH",     "priority": 1, "fcfa": 1.8},
+    "TransportCheckpoint":   {"fix": "checkpoint_resync",       "severity": "HIGH",     "priority": 1, "fcfa": 1.5},
+    "LoginAuthFailure":      {"fix": "auth_token_refresh",      "severity": "HIGH",     "priority": 1, "fcfa": 0.6},
 }
 
 RESOLUTION_TEMPLATES: Dict[str, str] = {
-    "inject_null_guard":    "Injected null-safety guard at call site; Optional wrapper added",
-    "bounds_check_patch":   "Applied bounds validation; matrix dimensions clamped to valid range",
-    "pool_scale_up":        "DB pool maxSize scaled 5→50; idle-connection timeout set to 30s",
-    "gc_force_sweep":       "Triggered full GC sweep; unreachable cache handles released from heap",
-    "config_reload":        "Config hot-reloaded from /etc/sigif2/config.yaml; endpoint restored",
-    "rotate_credentials":   "JWT secret rotated to 256-bit random key; all sessions invalidated",
-    "query_plan_optimize":  "Index hint injected; query plan rebuilt — full-scan eliminated",
-    "circuit_breaker":      "Circuit breaker opened; fallback route activated for payment gateway",
-    "generic_patch":        "Generic runtime patch applied; module restarted cleanly",
-    "apply_config_default": "Parameter updated to optimal value; service config hot-reloaded",
+    "lv_atomic_commit":        "LV modification wrapped in atomic transaction; commit+rollback guard added — « Transaction non accomplie » eliminated",
+    "autoscale_failover":      "Auto-scaling group scaled out; Camtel→MTN/Orange failover activated — 503 / ADF cleared",
+    "bse_queue_rearchitect":   "BSE submission queue switched to parallel workers; stuck « en cours » files requeued and cleared",
+    "permit_autorenew":        "Prorogation auto-activation job triggered; permit reactivated — parc production unblocked",
+    "pool_scale_savepoint":    "DB pool scaled 5→50 with savepoint isolation — concurrency deadlock released",
+    "dns_failover":            "DNS switched to secondary provider; MTN + Orange routing restored simultaneously",
+    "session_keepalive":       "Session keep-alive heartbeat enabled; page-expiry token refresh restored",
+    "batch_checkpoint_resume": "Halted production batch checkpointed and resumed; backlog drained",
+    "checkpoint_resync":       "Transport checkpoint re-synchronised with central ledger; truck clearance restored",
+    "auth_token_refresh":      "Auth token refreshed; login session re-established without re-authentication",
+    "generic_patch":           "Generic runtime patch applied; module restarted cleanly",
+    "apply_config_default":    "Parameter updated to optimal value; service config hot-reloaded",
 }
 
 FIX_TIMES_MS: Dict[str, Tuple[int, int]] = {
-    "inject_null_guard":    (200, 800),
-    "bounds_check_patch":   (150, 600),
-    "pool_scale_up":        (100, 300),
-    "gc_force_sweep":       (500, 1500),
-    "config_reload":        (50,  200),
-    "rotate_credentials":   (300, 900),
-    "query_plan_optimize":  (400, 1200),
-    "circuit_breaker":      (200, 700),
-    "generic_patch":        (300, 1000),
-    "apply_config_default": (80,  250),
+    "lv_atomic_commit":        (200, 700),
+    "autoscale_failover":      (300, 900),
+    "bse_queue_rearchitect":   (400, 1200),
+    "permit_autorenew":        (150, 500),
+    "pool_scale_savepoint":    (100, 300),
+    "dns_failover":            (150, 450),
+    "session_keepalive":       (50,  200),
+    "batch_checkpoint_resume": (300, 1000),
+    "checkpoint_resync":       (200, 700),
+    "auth_token_refresh":      (40,  180),
+    "generic_patch":           (300, 1000),
+    "apply_config_default":    (80,  250),
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# SIGIF2 PERFORMANCE REVIEW — headline figures from the chat-based fault
+# analysis (Jun 2025–Mar 2026, 5,975 WhatsApp assistance-group messages).
+# These ground the live demo in the system's real operational history.
+# ─────────────────────────────────────────────────────────────────────
+SIGIF2_REVIEW: Dict[str, Any] = {
+    "period":              "Jun 2025 – Mar 2026",
+    "messages_analysed":   5975,
+    "issues_logged":       2894,
+    "critical_issues":     687,
+    "monthly_exposure_m":  740.6,   # M FCFA/month at Period-B rate
+    "daily_cost_m":        24.69,   # M FCFA/day at Period-B rate
+    "availability_before": 55,      # % (Period B)
+    "availability_target": 99,      # % (Guardian objective)
+    "annual_projection_b": 9.01,    # B FCFA/year if unaddressed
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -290,15 +315,18 @@ class HistoricalBootstrap:
     """
 
     # (bug_type, avg_interval_hours, std_hours, modules)
+    # Intervals derived from Period-A volumes (214 days ≈ 5,136 h ÷ issue count).
     SCHEDULES: List[Tuple] = [
-        ("NullPointerException",  10.0,  3.0, ["AccountingEngine", "FiscalModule"]),
-        ("DBConnectionTimeout",   18.0,  5.0, ["DataAccessLayer", "QueryEngine"]),
-        ("MemoryLeak",            28.0,  8.0, ["CacheManager", "SessionManager"]),
-        ("SlowQuery",              8.0,  2.0, ["QueryOptimizer", "TxLedger"]),
-        ("ServiceUnavailable",    40.0, 12.0, ["MicroserviceMesh", "PayGateway"]),
-        ("SecurityVulnerability", 72.0, 24.0, ["AuthService", "APIMiddleware"]),
-        ("ArrayIndexOutOfBounds", 15.0,  4.0, ["ReportGenerator", "BudgetModule"]),
-        ("MissingConfig",         50.0, 16.0, ["ConfigLoader", "Bootstrap"]),
+        ("LVModificationFailure",  8.4,  2.5, ["LV-TransportLetter", "LV-ModificationService"]),   # 612 issues
+        ("ServerUnavailable503",   9.5,  3.0, ["Infra-AppServer", "Infra-LoadBalancer"]),          # 538 issues
+        ("DBConcurrencyLock",     10.3,  3.0, ["DataAccessLayer", "QueryEngine"]),                 # inferred DB contention
+        ("SessionPageExpiry",     12.5,  4.0, ["Web-SessionManager", "Web-Gateway"]),              # 412 issues
+        ("PermitDeactivation",    17.2,  5.0, ["Permit-Prorogation", "Permit-ParcActivation"]),    # 298 issues
+        ("BSEQueueBlock",         18.6,  6.0, ["BSE-ExportQueue", "BSE-SubmissionEngine"]),        # 276 issues
+        ("LoginAuthFailure",      24.0,  7.0, ["Auth-Login", "Auth-SessionStore"]),               # 214 issues
+        ("ProductionHalt",        30.6,  9.0, ["Production-BatchEngine", "Production-Scheduler"]), # 168 issues
+        ("TransportCheckpoint",   59.7, 18.0, ["Transport-Checkpoint", "Transport-Clearance"]),    # 86 issues
+        ("DNSRoutingFailure",     96.0, 28.0, ["Infra-DNS", "Infra-Routing"]),                     # rare, high-impact
     ]
 
     def run(self, db: HistoricalDB):
@@ -409,45 +437,61 @@ class SIGIF2Simulator:
     """Simulates the SIGIF2 financial-information system under live load."""
 
     BUG_POOL = [
-        {"id": "NPE-001", "type": "NullPointerException",  "module": "AccountingEngine",
-         "severity": "HIGH",     "description": "Null pointer in fiscal reconciliation loop",
-         "stack": "at SIGIF2.AccountingEngine.reconcile(AE.java:247)\nat SIGIF2.FiscalModule.process(FM.java:89)"},
-        {"id": "OOB-002", "type": "ArrayIndexOutOfBounds", "module": "ReportGenerator",
-         "severity": "HIGH",     "description": "Array index out of bounds in budget matrix",
-         "stack": "at SIGIF2.ReportGen.buildMatrix(RG.java:512)\nat SIGIF2.BudgetModule.export(BM.java:134)"},
-        {"id": "DBC-003", "type": "DBConnectionTimeout",   "module": "DataAccessLayer",
-         "severity": "CRITICAL", "description": "DB connection pool exhausted under heavy load",
-         "stack": "at SIGIF2.DAL.getConnection(DAL.java:78)\nat SIGIF2.QueryEngine.execute(QE.java:201)"},
-        {"id": "MEM-004", "type": "MemoryLeak",            "module": "CacheManager",
-         "severity": "HIGH",     "description": "Unclosed cache handles leaking heap memory",
-         "stack": "at SIGIF2.Cache.allocate(Cache.java:155)\nat SIGIF2.SessionMgr.open(SM.java:67)"},
-        {"id": "CFG-005", "type": "MissingConfig",         "module": "ConfigLoader",
-         "severity": "MEDIUM",   "description": "Missing treasury endpoint in config.yaml",
-         "stack": "at SIGIF2.Config.load(Config.java:33)\nat SIGIF2.Bootstrap.init(Boot.java:22)"},
-        {"id": "SEC-006", "type": "SecurityVulnerability", "module": "AuthService",
-         "severity": "CRITICAL", "description": "JWT secret key uses default factory value",
-         "stack": "at SIGIF2.Auth.validate(Auth.java:91)\nat SIGIF2.API.middleware(API.java:45)"},
-        {"id": "QRY-007", "type": "SlowQuery",             "module": "QueryOptimizer",
-         "severity": "MEDIUM",   "description": "Full-table scan on transactions >50 M rows",
-         "stack": "at SIGIF2.QueryOpt.plan(QO.java:308)\nat SIGIF2.TxLedger.fetch(TL.java:189)"},
-        {"id": "SVC-008", "type": "ServiceUnavailable",    "module": "MicroserviceMesh",
-         "severity": "HIGH",     "description": "Payment-gateway microservice not responding",
-         "stack": "at SIGIF2.Mesh.route(Mesh.java:77)\nat SIGIF2.PayGateway.charge(PG.java:56)"},
+        {"id": "LV-612",  "type": "LVModificationFailure", "module": "LV-ModificationService",
+         "severity": "CRITICAL", "fcfa": 2.1,
+         "description": "LV modification hangs — « Transaction non accomplie. Veuillez contacter votre administrateur »",
+         "stack": "at SIGIF2.LV.ModificationService.update(LV.java:847)\nat SIGIF2.LV.TransportLetter.persist(TL.java:312) — commit never reached"},
+        {"id": "SRV-538", "type": "ServerUnavailable503", "module": "Infra-AppServer",
+         "severity": "CRITICAL", "fcfa": 3.2,
+         "description": "503 Service Unavailable / ADF — Camtel fiber single point of failure, no auto-scaling",
+         "stack": "HTTP 503 at edge gateway\nupstream SIGIF2.AppServer unreachable — pool saturated, no failover route"},
+        {"id": "BSE-276", "type": "BSEQueueBlock", "module": "BSE-ExportQueue",
+         "severity": "CRITICAL", "fcfa": 4.2,
+         "description": "BSE export submissions accepted then lost / stuck « en cours » — sequential queue blocks all users",
+         "stack": "at SIGIF2.BSE.ExportQueue.enqueue(BSE.java:188)\nqueue head lock held — 42 submissions blocked behind one"},
+        {"id": "PRM-298", "type": "PermitDeactivation", "module": "Permit-Prorogation",
+         "severity": "CRITICAL", "fcfa": 6.5,
+         "description": "Prorogation submitted weeks ago still not activated — mass permit deactivation halts production",
+         "stack": "at SIGIF2.Permit.Prorogation.activate(PP.java:401)\nscheduled reactivation job never fired — parc inactive 24 days"},
+        {"id": "DBC-500", "type": "DBConcurrencyLock", "module": "DataAccessLayer",
+         "severity": "CRITICAL", "fcfa": 2.8,
+         "description": "DB connection pool exhausted under concurrent load — maxSize=5, no savepoints",
+         "stack": "at SIGIF2.DAL.getConnection(DAL.java:78) — pool starved\nlock wait timeout exceeded on tx_ledger"},
+        {"id": "DNS-024", "type": "DNSRoutingFailure", "module": "Infra-DNS",
+         "severity": "CRITICAL", "fcfa": 3.0,
+         "description": "DNS/routing failure took down MTN and Orange access simultaneously (Dec 24 incident)",
+         "stack": "DNS resolution failed for sigif2.gov\nsingle resolver, no secondary provider configured"},
+        {"id": "SES-412", "type": "SessionPageExpiry", "module": "Web-SessionManager",
+         "severity": "HIGH", "fcfa": 0.9,
+         "description": "« La page a expiré » — session dropped mid-operation, work lost on submit",
+         "stack": "at SIGIF2.Web.Session.validate(WS.java:142)\nsession TTL too short, no keep-alive heartbeat"},
+        {"id": "PRD-168", "type": "ProductionHalt", "module": "Production-BatchEngine",
+         "severity": "HIGH", "fcfa": 1.8,
+         "description": "Production batch halted — processing backlog accumulating, no checkpoint/resume",
+         "stack": "at SIGIF2.Production.BatchEngine.run(PB.java:233)\nbatch aborted at row 48201 — no restart checkpoint"},
+        {"id": "TRN-086", "type": "TransportCheckpoint", "module": "Transport-Checkpoint",
+         "severity": "HIGH", "fcfa": 1.5,
+         "description": "Checkpoint desync blocks truck clearance — immobilisation at control post",
+         "stack": "at SIGIF2.Transport.Checkpoint.sync(TC.java:91)\nledger mismatch — clearance token rejected"},
+        {"id": "AUT-214", "type": "LoginAuthFailure", "module": "Auth-Login",
+         "severity": "HIGH", "fcfa": 0.6,
+         "description": "Login errors — users unable to authenticate during peak hours",
+         "stack": "at SIGIF2.Auth.Login.authenticate(AL.java:66)\nsession store contention — token issuance failed"},
     ]
 
     DEFAULTS = [
-        {"id": "DEF-101", "param": "db.pool.maxSize",     "current": "5",     "optimal": "50",
-         "impact": "Connection starvation under concurrent load"},
-        {"id": "DEF-102", "param": "cache.ttl.seconds",   "current": "30",    "optimal": "300",
-         "impact": "Excessive DB reads, high latency"},
-        {"id": "DEF-103", "param": "log.level",           "current": "DEBUG", "optimal": "INFO",
-         "impact": "Log I/O saturating disk on prod"},
-        {"id": "DEF-104", "param": "http.timeout.ms",     "current": "30000", "optimal": "5000",
-         "impact": "Thread pool exhaustion on slow clients"},
-        {"id": "DEF-105", "param": "jwt.expiry.minutes",  "current": "1440",  "optimal": "60",
-         "impact": "Extended session hijacking window"},
-        {"id": "DEF-106", "param": "query.cache.enabled", "current": "false", "optimal": "true",
-         "impact": "Redundant queries for repeated requests"},
+        {"id": "DEF-101", "param": "db.pool.maxSize",        "current": "5",     "optimal": "50",
+         "impact": "Connection starvation under concurrent load (root cause of DB concurrency crisis)"},
+        {"id": "DEF-102", "param": "autoscaling.enabled",    "current": "false", "optimal": "true",
+         "impact": "No auto-scaling — 503/ADF outages during peak declaration periods"},
+        {"id": "DEF-103", "param": "dr.failover.enabled",    "current": "false", "optimal": "true",
+         "impact": "No disaster recovery — Camtel fiber cut = full outage (72 h incident)"},
+        {"id": "DEF-104", "param": "dns.providers",          "current": "1",     "optimal": "3",
+         "impact": "Single DNS provider — simultaneous MTN+Orange loss on resolver failure"},
+        {"id": "DEF-105", "param": "lv.tx.isolation",        "current": "READ_UNCOMMITTED", "optimal": "SERIALIZABLE",
+         "impact": "LV modification logic flaw — data disappears on concurrent modify"},
+        {"id": "DEF-106", "param": "cert.autorenew.days",    "current": "0",     "optimal": "30",
+         "impact": "Certificate not auto-renewed — periodic login/security failures"},
     ]
 
     def __init__(self):
@@ -459,14 +503,16 @@ class SIGIF2Simulator:
         self.tick += 1
         t = self.tick
 
-        if t % random.randint(8, 16) == 0:
-            bug = random.choice(self.BUG_POOL).copy()
-            bug["detected_at"] = datetime.now().isoformat()
-            bug["status"]      = "ACTIVE"
-            if not any(b["id"] == bug["id"] for b in self.active_bugs):
-                self.active_bugs.append(bug)
+        if t % random.randint(2, 5) == 0 and len(self.active_bugs) < 6:
+            for _ in range(random.randint(1, 3)):
+                bug = random.choice(self.BUG_POOL).copy()
+                bug["detected_at"] = datetime.now().isoformat()
+                bug["status"]      = "ACTIVE"
+                if (not any(b["id"] == bug["id"] for b in self.active_bugs)
+                        and len(self.active_bugs) < 6):
+                    self.active_bugs.append(bug)
 
-        if t % random.randint(15, 25) == 0:
+        if t % random.randint(8, 14) == 0 and len(self.active_defaults) < 4:
             deflt = random.choice(self.DEFAULTS).copy()
             deflt["detected_at"] = datetime.now().isoformat()
             deflt["status"]      = "ACTIVE"
@@ -543,7 +589,7 @@ class PatternAnalyzer:
         raw_score  = float(self.model.score_samples(Xq)[0])
         pred       = self.model.predict(Xq)[0]
         normalised = max(0.0, min(1.0, (-raw_score - 0.3) * 2))
-        return (pred == -1), normalised
+        return bool(pred == -1), normalised
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -671,14 +717,16 @@ class RootCauseAnalyzer:
     """
 
     METRIC_SIGNATURES: Dict[str, Dict[str, float]] = {
-        "DBConnectionTimeout":   {"latency_ms": 0.9, "cpu_pct": 0.6, "error_rate": 0.8},
-        "MemoryLeak":            {"mem_pct": 0.95, "latency_ms": 0.5},
-        "ServiceUnavailable":    {"error_rate": 0.9, "req_per_sec": -0.8},
-        "SlowQuery":             {"latency_ms": 0.85, "cpu_pct": 0.7},
-        "NullPointerException":  {"error_rate": 0.75},
-        "SecurityVulnerability": {},
-        "ArrayIndexOutOfBounds": {"error_rate": 0.7, "latency_ms": 0.4},
-        "MissingConfig":         {"error_rate": 0.6},
+        "DBConcurrencyLock":     {"latency_ms": 0.9, "cpu_pct": 0.6, "error_rate": 0.8},
+        "ServerUnavailable503":  {"error_rate": 0.9, "req_per_sec": -0.85, "latency_ms": 0.6},
+        "BSEQueueBlock":         {"latency_ms": 0.8, "req_per_sec": -0.7},
+        "LVModificationFailure": {"error_rate": 0.85, "latency_ms": 0.5},
+        "PermitDeactivation":    {"error_rate": 0.7},
+        "DNSRoutingFailure":     {"error_rate": 0.9, "req_per_sec": -0.9},
+        "SessionPageExpiry":     {"error_rate": 0.65, "latency_ms": 0.4},
+        "ProductionHalt":        {"req_per_sec": -0.6, "cpu_pct": 0.5},
+        "TransportCheckpoint":   {"error_rate": 0.6},
+        "LoginAuthFailure":      {"error_rate": 0.7},
     }
 
     def analyse(self, metrics: Dict, active_bugs: List[Dict]) -> Optional[Dict]:
@@ -715,6 +763,7 @@ class HealingEngine:
             "defaults_adjusted":    0,
             "anomalies_suppressed": 0,
             "total_ms_saved":       0,
+            "fcfa_recovered_m":     0.0,   # cumulative M FCFA of exposure neutralised
         }
 
     def heal_bug(self, bug: Dict) -> Dict:
@@ -723,6 +772,7 @@ class HealingEngine:
         elapsed = random.randint(lo, hi)
         time.sleep(elapsed / 1000.0)
 
+        fcfa = bug.get("fcfa", BUG_CATALOGUE.get(bug.get("type", ""), {}).get("fcfa", 0.0))
         res = {
             "healed_id":   bug["id"],
             "type":        bug["type"],
@@ -731,14 +781,16 @@ class HealingEngine:
             "fix_applied": fix,
             "description": RESOLUTION_TEMPLATES.get(fix, "Patch applied"),
             "elapsed_ms":  elapsed,
+            "fcfa":        fcfa,
             "healed_at":   datetime.now().isoformat(),
             "category":    "BUG_FIX",
         }
         self.healed_log.append(res)
-        self.stats["bugs_fixed"]       += 1
-        self.stats["total_ms_saved"]   += elapsed
-        log.info("✔ HEALED [%s] %s via %s (%d ms)",
-                 bug["severity"], bug["id"], fix, elapsed)
+        self.stats["bugs_fixed"]        += 1
+        self.stats["total_ms_saved"]    += elapsed
+        self.stats["fcfa_recovered_m"]   = round(self.stats["fcfa_recovered_m"] + fcfa, 2)
+        log.info("✔ HEALED [%s] %s via %s (%d ms, %.1fM FCFA)",
+                 bug["severity"], bug["id"], fix, elapsed, fcfa)
         return res
 
     def adjust_default(self, deflt: Dict) -> Dict:
@@ -935,6 +987,9 @@ class GuardianBrain:
                                "success")
                 except Exception as e:
                     log.error("Healer error: %s", e)
+                # Brief dwell between heals so the live queue is observable
+                # (the guardian visibly works through faults in priority order)
+                time.sleep(2.0)
             else:
                 time.sleep(0.5)
 
@@ -993,6 +1048,7 @@ class GuardianBrain:
             "root_cause":       self._root_cause_info,
             "uptime_pct":       self.db.get_uptime_pct(),
             "predictions":      self.predictor.get_predictions(),
+            "review":           SIGIF2_REVIEW,
         }
 
     def history_snapshot(self) -> Dict:
@@ -1021,7 +1077,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <title>Autonomous Guardian System — SIGIF2 v2.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/vendor/chart.umd.min.js"></script>
+<script>
+/* Fallback to CDN only if the local vendored Chart.js is unavailable. */
+if(!window.Chart){document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>');}
+</script>
 <style>
 :root{
   --bg:#060d1a;--panel:#0b1628;--border:#0f3460;
@@ -1167,7 +1227,7 @@ header{background:linear-gradient(90deg,#00081a,var(--border),#00081a);
   <div>
     <div class="logo">Autonomous <span>Guardian</span> System <span style="font-size:.65rem;color:#3a5070">v2.0</span></div>
     <div style="font-size:.6rem;color:#3a5070;font-family:var(--mono);margin-top:1px">
-      SIGIF2 · Self-Healing · ML Core · Pattern Learning · Predictive Engine
+      SIGIF2 · Self-Healing · ML Core · Driven by Jun 2025–Mar 2026 Performance Review
     </div>
   </div>
   <div class="hdr-right">
@@ -1177,6 +1237,37 @@ header{background:linear-gradient(90deg,#00081a,var(--border),#00081a);
     <div class="status-pill"><div class="pulse"></div> AUTONOMOUS — OPERATIONAL</div>
   </div>
 </header>
+
+<!-- SIGIF2 Performance Review banner -->
+<div id="review-banner" style="display:flex;flex-wrap:wrap;align-items:center;gap:0;
+     background:linear-gradient(90deg,#0a1830,#0d2446,#0a1830);
+     border-bottom:1px solid var(--border);padding:7px 20px;max-width:1700px;margin:auto;
+     font-family:var(--mono)">
+  <div style="font-size:.6rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;
+       padding-right:16px;border-right:1px solid var(--dim)">
+    SIGIF2 Performance<br>Review
+  </div>
+  <div class="rev-chip" style="padding:0 16px;border-right:1px solid var(--dim)">
+    <div style="font-size:1.05rem;font-weight:800;color:var(--text)" id="rv-period">—</div>
+    <div style="font-size:.55rem;color:#5a7090;letter-spacing:1px">ANALYSIS PERIOD</div>
+  </div>
+  <div class="rev-chip" style="padding:0 16px;border-right:1px solid var(--dim)">
+    <div style="font-size:1.05rem;font-weight:800;color:var(--text)" id="rv-issues">—</div>
+    <div style="font-size:.55rem;color:#5a7090;letter-spacing:1px">ISSUES LOGGED</div>
+  </div>
+  <div class="rev-chip" style="padding:0 16px;border-right:1px solid var(--dim)">
+    <div style="font-size:1.05rem;font-weight:800;color:var(--red)" id="rv-exposure">—</div>
+    <div style="font-size:.55rem;color:#5a7090;letter-spacing:1px">MONTHLY EXPOSURE</div>
+  </div>
+  <div class="rev-chip" style="padding:0 16px;border-right:1px solid var(--dim)">
+    <div style="font-size:1.05rem;font-weight:800;color:var(--yellow)" id="rv-avail">—</div>
+    <div style="font-size:.55rem;color:#5a7090;letter-spacing:1px">AVAILABILITY → TARGET</div>
+  </div>
+  <div class="rev-chip" style="padding:0 16px;margin-left:auto;text-align:right">
+    <div style="font-size:1.35rem;font-weight:800;color:var(--green);text-shadow:0 0 12px rgba(0,255,136,.4)" id="rv-recovered">0.0M</div>
+    <div style="font-size:.55rem;color:var(--green);letter-spacing:1px">FCFA EXPOSURE RECOVERED ▲</div>
+  </div>
+</div>
 
 <div class="grid" id="app">
 
@@ -1335,7 +1426,7 @@ header{background:linear-gradient(90deg,#00081a,var(--border),#00081a);
         <thead>
           <tr>
             <th>TIME</th><th>ID</th><th>TYPE</th><th>MODULE</th>
-            <th>SEVERITY</th><th>FIX APPLIED</th><th>MS</th><th>RESOLUTION</th>
+            <th>SEVERITY</th><th>FIX APPLIED</th><th>MS</th><th>FCFA</th><th>RESOLUTION</th>
           </tr>
         </thead>
         <tbody id="heal-tbody"></tbody>
@@ -1470,6 +1561,16 @@ function renderStats(s){
   document.getElementById('st-anom').textContent = s.anomalies_suppressed||0;
 }
 
+function renderReview(rv, s){
+  if(!rv || !rv.period) return;
+  document.getElementById('rv-period').textContent   = rv.period;
+  document.getElementById('rv-issues').textContent   = (rv.issues_logged||0).toLocaleString();
+  document.getElementById('rv-exposure').textContent = (rv.monthly_exposure_m||0)+'M FCFA';
+  document.getElementById('rv-avail').textContent    = (rv.availability_before||0)+'% → '+(rv.availability_target||0)+'%';
+  const recovered = (s.fcfa_recovered_m||0);
+  document.getElementById('rv-recovered').textContent = recovered.toFixed(1)+'M';
+}
+
 function renderRootCause(rc){
   const el = document.getElementById('rc-display');
   if(!rc){ el.innerHTML=''; return; }
@@ -1554,6 +1655,7 @@ function renderHealLog(log){
       <td><span class="badge badge-${sev}">${esc(r.severity||'')}</span></td>
       <td><span class="badge ${cat}">${esc(r.fix_applied||'')}</span></td>
       <td style="color:var(--green)">${r.elapsed_ms}</td>
+      <td style="color:var(--yellow)">${r.fcfa?('+'+Number(r.fcfa).toFixed(1)+'M'):'—'}</td>
       <td style="color:#6080a0;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.description||'')}</td>`;
     tb.prepend(tr);
     while(tb.children.length>60) tb.removeChild(tb.lastChild);
@@ -1655,6 +1757,7 @@ async function poll(){
     renderKPIs(m, data);
     renderAnomaly(m.anomaly_score||0);
     renderStats(data.stats||{});
+    renderReview(data.review||{}, data.stats||{});
     renderRootCause(data.root_cause);
     renderEvents(data.events||[]);
     renderBugs(data.active_bugs||[]);
@@ -1682,7 +1785,7 @@ async function pollHistory(){
   }
 }
 
-initCharts();
+try { initCharts(); } catch(e){ console.warn('Chart init skipped:', e.message); }
 poll();
 pollHistory();
 setInterval(poll,       POLL_MS);
@@ -1698,6 +1801,12 @@ setInterval(pollHistory, HIST_MS);
 @app.route("/")
 def index():
     return render_template_string(DASHBOARD_HTML)
+
+@app.route("/vendor/<path:fn>")
+def vendor(fn):
+    # Serve vendored front-end libraries (Chart.js) locally so the dashboard
+    # never depends on an external CDN being reachable.
+    return send_from_directory(str(Path(__file__).parent / "vendor"), fn)
 
 @app.route("/api/snapshot")
 def api_snapshot():
