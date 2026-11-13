@@ -1,0 +1,30 @@
+{
+ "region": "Est",
+ "uc_dimensions": {
+  "width_m": 1000,
+  "height_m": 250,
+  "area_ha": 25,
+  "note": "Unité de comptage normalisée : layon de 1000 m × 250 m = 25 ha."
+ },
+ "extent": {
+  "X0": 510135,
+  "Y0": 392312,
+  "X1": 518326,
+  "Y1": 398389,
+  "CW": 1000,
+  "CH": 250
+ },
+ "geo_guard": {
+  "dom": "SE",
+  "domname": "Congolaise extreme Sud-Est",
+  "zone": "33N",
+  "lat": "3,552–3,602 N",
+  "lon": "15,094–15,162 E",
+  "env": 0,
+  "zmix": 0,
+  "xok": true,
+  "ok": true,
+  "nflag": 0,
+  "nsp": 33
+ }
+}
