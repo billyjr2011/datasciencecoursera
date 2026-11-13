@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    paths: ['syvief/**', '.github/workflows/ci.yml']
+  pull_request:
+    paths: ['syvief/**']
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: syvief
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install & seed & test API
+        run: |
+          npm --workspace server install
+          npm run seed
+          npm run train
+          npm test
+
+      - name: Build PWA (static site → docs/)
+        run: |
+          cd app && npm install && npm run build
+
+      - name: Verify docs/ build output
+        run: test -f ../docs/index.html && test -f ../docs/manifest.webmanifest

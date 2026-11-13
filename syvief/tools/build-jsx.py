@@ -48,7 +48,28 @@ css += """
   color:var(--mut);cursor:pointer;padding:9px 12px;border-radius:9px}
 .nav button:hover{background:var(--elv);color:var(--txt)}
 .nav button.on{background:var(--elv);color:var(--txt);box-shadow:inset 3px 0 0 var(--grn)}
-body{background:var(--bg)}
+body{background:var(--bg);-webkit-text-size-adjust:100%}
+/* ---- adaptation mobile / iPhone (encoche, cibles tactiles) ---- */
+@media(max-width:820px){
+  .side{position:sticky;top:0;z-index:30;padding:calc(10px + env(safe-area-inset-top)) 10px 10px;
+    display:flex;flex-direction:column;gap:10px}
+  .nav{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:6px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .nav::-webkit-scrollbar{display:none}
+  .nav button{width:auto;white-space:nowrap;padding:8px 12px;border-radius:999px;
+    border:1px solid var(--bdr)}
+  .nav button.on{box-shadow:none;border-color:var(--grn)}
+  .main{padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+  .drawer{width:100vw;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+  .page-head h2{font-size:19px}
+  .toolbar{gap:8px}
+  .toolbar select,.toolbar input{flex:1 1 42%}
+  .def{grid-template-columns:1fr 1fr}
+  .grid[style*='1.2fr'],.grid[style*='1fr 1fr']{grid-template-columns:1fr !important}
+  table{font-size:12.5px}
+  th,td{padding:8px 7px}
+  .btn,select,input,button{min-height:40px}
+}
 """
 
 code = open(os.path.join(ROOT, "tools", "_syvief_code.jsx"), encoding="utf8").read()
@@ -87,8 +108,11 @@ out.append(js("MODEL0", model))
 out.append("const CSS = " + json.dumps(css, ensure_ascii=False) + ";\n\n")
 out.append(code)
 
-dest = os.path.join(ROOT, "SYVIEF.jsx")
-open(dest, "w", encoding="utf8").write("".join(out))
-size = os.path.getsize(dest)
-print(f"écrit {dest} ({size} octets)")
+content = "".join(out)
+# Fichier racine (composant autonome, livrable) + copie dans l'app PWA déployable.
+targets = [os.path.join(ROOT, "SYVIEF.jsx"), os.path.join(ROOT, "app", "src", "SYVIEF.jsx")]
+for dest in targets:
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    open(dest, "w", encoding="utf8").write(content)
+    print(f"écrit {dest} ({os.path.getsize(dest)} octets)")
 print(f"  UCS={len(ucs)} trees={len(trees)} groupes={len(trees_by_uc)} alerts={len(alerts)}")

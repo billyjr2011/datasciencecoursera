@@ -13,6 +13,21 @@ normalisé). L'application est amorcée avec un jeu de données réel extrait d'
 conformité : **4 blocs, 127 UC, 1 064 tiges irrégulières, 11 alertes d'isolement** sur une
 concession de la **région Est** (zone UTM 33N, ~3,55–3,60 °N).
 
+## 📱 Application (iPhone / web)
+
+Version PWA installable, sans serveur, hébergée sur GitHub Pages :
+
+### ➡️ https://billyjr2011.github.io/datasciencecoursera/
+
+- **Sur iPhone** : ouvrir le lien dans **Safari** → bouton **Partager** →
+  **Sur l'écran d'accueil**. L'app s'ouvre en plein écran comme une application native,
+  fonctionne hors-ligne et mémorise les décisions de contrôle.
+- Activation de GitHub Pages (une seule fois) et détails :
+  [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+> Le site compilé est versionné dans [`docs/`](../docs). Après fusion dans `master`,
+> activer **Settings → Pages → Deploy from a branch → `master` / `/docs`**.
+
 ## Apprentissage automatique — conformité par région
 
 SYVIEF apprend la **signature des inventaires conformes** des sociétés certifiées sur les
